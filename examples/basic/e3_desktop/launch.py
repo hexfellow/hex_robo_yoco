@@ -42,7 +42,7 @@ MUJOCO_PARAMS = {
     "states_rate": 500,
     "img_rate": 30,
     "tau_ctrl": True,
-    "headless": False,
+    "headless": True,
     "sens_ts": True,
 }
 

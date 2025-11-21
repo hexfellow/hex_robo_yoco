@@ -108,18 +108,32 @@ def main():
     q_tar = np.array(
         [0.0, -0.0205679922, 2.57081467, -0.978840246, 0.0, 0.0, 0.5])
     rate = HexRate(500)
+    test_num = 10_000
+    err_dict = {
+        "get_states": 0,
+        "calc_cmds": 0,
+        "set_cmds": 0,
+        "loop": 0,
+    }
     try:
         q_cur = None
         dq_cur = None
-        while True:
+        for i in range(test_num):
+            loop_start_time = time.perf_counter_ns()
+
+            get_states_start_time = time.perf_counter_ns()
             robot_states_hdr, robot_states = client.get_states()
+            get_states_elapsed_time = (time.perf_counter_ns() -
+                                       get_states_start_time) / 1e6
+            if get_states_elapsed_time > 1.0:
+                err_dict["get_states"] += 1
             if robot_states_hdr is not None:
-                print(f"robot_states_seq: {robot_states_hdr['args']}")
                 q_cur = robot_states[:, 0]
                 dq_cur = robot_states[:, 1]
 
             # hex_log(HEX_LOG_LEVEL["info"], f"cmds: {cmds}")
             if q_cur is not None and dq_cur is not None:
+                calc_cmds_start_time = time.perf_counter_ns()
                 tau_comp = cal_tau_comp(
                     q_cur,
                     dq_cur,
@@ -136,7 +150,16 @@ def main():
                     dq_cur=dq_cur,
                     tau_comp=tau_comp,
                 )
+                calc_cmds_elapsed_time = (time.perf_counter_ns() -
+                                          calc_cmds_start_time) / 1e6
+                if calc_cmds_elapsed_time > 0.2:
+                    err_dict["calc_cmds"] += 1
+                set_cmds_start_time = time.perf_counter_ns()
                 _ = client.set_cmds(cmds)
+                set_cmds_elapsed_time = (time.perf_counter_ns() -
+                                         set_cmds_start_time) / 1e6
+                if set_cmds_elapsed_time > 1.0:
+                    err_dict["set_cmds"] += 1
 
             if yoco_config["use_cam"]:
                 depth_hdr, depth_img = client.get_depth()
@@ -152,9 +175,19 @@ def main():
                 if key == ord('q'):
                     break
 
+            elapsed_time = (time.perf_counter_ns() - loop_start_time) / 1e6
+            if elapsed_time > 2.0:
+                err_dict["loop"] += 1
+
+            if (i + 1) % 1_000 == 0:
+                hex_log(HEX_LOG_LEVEL["info"], f"{i + 1}/{test_num}")
+
             rate.sleep()
     finally:
         cv2.destroyAllWindows()
+        hex_log(HEX_LOG_LEVEL["info"], f"##### err_dict: #####")
+        for key, value in err_dict.items():
+            hex_log(HEX_LOG_LEVEL["info"], f"## {key}: {value}")
 
 
 if __name__ == '__main__':

@@ -12,7 +12,7 @@ from hex_zmq_servers import HEX_ZMQ_SERVERS_PATH_DICT, HEX_ZMQ_CONFIGS_PATH_DICT
 from hex_zmq_servers import HEXARM_URDF_PATH_DICT
 
 # Yoco config
-YOCO = {"use_sim": True, "use_cam": True}
+YOCO = {"use_sim": True, "use_cam": False}
 
 # Mit config
 MIT_CFG = {
@@ -35,7 +35,7 @@ MUJOCO_PARAMS = {
     "states_rate": 500,
     "img_rate": 30,
     "tau_ctrl": True,
-    "headless": False,
+    "headless": True,
     "sens_ts": True,
 }
 

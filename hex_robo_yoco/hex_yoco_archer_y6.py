@@ -63,7 +63,6 @@ class HexYocoArcherY6:
         }
 
     def is_working(self):
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].is_working()
         else:
@@ -73,56 +72,48 @@ class HexYocoArcherY6:
             return robot_working and camera_working
 
     def reset(self):
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].reset()
         else:
             raise ValueError("`reset` is not supported in real mode")
 
     def get_obj_pose(self):
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].get_states("obj")
         else:
             raise ValueError("`get_obj_pose` is not supported in real mode")
 
     def seq_clear(self):
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].seq_clear()
         else:
             return self.__clients["robot"].seq_clear()
 
     def get_dofs(self):
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].get_dofs()[0]
         else:
             return self.__clients["robot"].get_dofs()[0]
 
     def get_limits(self):
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].get_limits()[0].reshape(-1, 1, 2)
         else:
             return self.__clients["robot"].get_limits()[0]
 
     def get_states(self):
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].get_states('robot')
         else:
             return self.__clients["robot"].get_states()
 
     def set_cmds(self, cmds: np.ndarray) -> bool:
-        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].set_cmds(cmds)
         else:
             return self.__clients["robot"].set_cmds(cmds)
 
     def get_intri(self):
-        time.sleep(0)
         if self.__use_cam:
             if self.__use_sim:
                 _, intri_array = self.__clients["mujoco"].get_intri()
@@ -134,7 +125,6 @@ class HexYocoArcherY6:
             raise ValueError("`get_intri` is not supported without `use_cam`")
 
     def get_rgb(self):
-        time.sleep(0)
         if self.__use_cam:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_rgb()
@@ -144,7 +134,6 @@ class HexYocoArcherY6:
             raise ValueError("`get_rgb` is not supported without `use_cam`")
 
     def get_depth(self):
-        time.sleep(0)
         if self.__use_cam:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_depth()
