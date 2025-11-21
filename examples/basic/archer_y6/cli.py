@@ -32,6 +32,32 @@ def wait_client_working(client, timeout: float = 5.0) -> bool:
     return False
 
 
+def depth_to_cmap(depth_img: np.ndarray):
+    depth_values = depth_img.astype(np.float32)
+    depth_norm = np.clip((depth_values - 70) / (1000 - 70), 0.0, 1.0)
+    depth_u8 = (depth_norm * 255.0).astype(np.uint8)
+    depth_cmap = cv2.applyColorMap(depth_u8, cv2.COLORMAP_JET)
+    return depth_cmap
+
+
+def cal_tau_comp(
+    q_cur: np.ndarray,
+    dq_cur: np.ndarray,
+    dyn_util: DynUtil,
+    dofs: int,
+    use_gripper: bool,
+):
+    tau_comp = np.zeros(dofs)
+    q_arm = q_cur[:-1] if use_gripper else q_cur
+    dq_arm = dq_cur[:-1] if use_gripper else dq_cur
+    _, c_mat, g_vec, _, _ = dyn_util.dynamic_params(q_arm, dq_arm)
+    if use_gripper:
+        tau_comp[:-1] = c_mat @ dq_arm + g_vec
+    else:
+        tau_comp = c_mat @ dq_arm + g_vec
+    return tau_comp
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", type=str, required=True)
@@ -54,6 +80,7 @@ def main():
 
     # init
     client = HexYocoArcherY6(yoco_config=yoco_config, net_config=net_config)
+    yoco_config = client.get_yoco_config()
     dyn_util = DynUtil(
         model_path=model_path,
         end_pose=np.array(
@@ -72,7 +99,7 @@ def main():
     dofs = client.get_dofs()
     limits = client.get_limits()
     hex_log(HEX_LOG_LEVEL["info"], f"dofs: {dofs}")
-    hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits.shape}")
+    hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits}")
     if yoco_config["use_cam"]:
         intri = client.get_intri()
         hex_log(HEX_LOG_LEVEL["info"], f"intri: {intri}")
@@ -87,55 +114,43 @@ def main():
         while True:
             robot_states_hdr, robot_states = client.get_states()
             if robot_states_hdr is not None:
+                print(f"robot_states_seq: {robot_states_hdr['args']}")
                 q_cur = robot_states[:, 0]
                 dq_cur = robot_states[:, 1]
 
             # hex_log(HEX_LOG_LEVEL["info"], f"cmds: {cmds}")
-            if (q_cur is not None) and (dq_cur is not None):
-                tau_comp = None
-                if use_gripper:
-                    tau_comp = np.zeros(7)
-                    _, c_mat, g_vec, _, _ = dyn_util.dynamic_params(
-                        q_cur[:-1], dq_cur[:-1])
-                    tau_comp[:-1] = c_mat @ dq_cur[:-1] + g_vec
-                else:
-                    _, c_mat, g_vec, _, _ = dyn_util.dynamic_params(
-                        q_cur, dq_cur)
-                    tau_comp = c_mat @ dq_cur + g_vec
+            if q_cur is not None and dq_cur is not None:
+                tau_comp = cal_tau_comp(
+                    q_cur,
+                    dq_cur,
+                    dyn_util,
+                    dofs,
+                    use_gripper,
+                )
                 cmds = ctrl_util(
                     kp=mit_kp,
                     kd=mit_kd,
                     q_tar=q_tar,
-                    dq_tar=np.zeros(7 if use_gripper else 6),
+                    dq_tar=np.zeros(dofs),
                     q_cur=q_cur,
                     dq_cur=dq_cur,
                     tau_comp=tau_comp,
                 )
                 _ = client.set_cmds(cmds)
 
-            depth_hdr, depth_img = client.get_depth()
-            if depth_hdr is not None:
-                # hex_log(
-                #     HEX_LOG_LEVEL["info"],
-                #     f"depth_seq: {depth_hdr['args']}; depth_ts: {depth_hdr['ts']}"
-                # )
-                depth_values = depth_img.astype(np.float32)
-                depth_norm = np.clip((depth_values - 70) / (1000 - 70), 0.0,
-                                     1.0)
-                depth_u8 = (depth_norm * 255.0).astype(np.uint8)
-                depth_cmap = cv2.applyColorMap(depth_u8, cv2.COLORMAP_JET)
-                cv2.imshow("depth_cmap", depth_cmap)
+            if yoco_config["use_cam"]:
+                depth_hdr, depth_img = client.get_depth()
+                if depth_hdr is not None:
+                    depth_cmap = depth_to_cmap(depth_img)
+                    cv2.imshow("depth_cmap", depth_cmap)
 
-            rgb_hdr, rgb_img = client.get_rgb()
-            if rgb_hdr is not None:
-                # hex_log(
-                #     HEX_LOG_LEVEL["info"],
-                #     f"rgb_seq: {rgb_hdr['args']}; rgb_ts: {rgb_hdr['ts']}")
-                cv2.imshow("rgb_img", rgb_img)
+                rgb_hdr, rgb_img = client.get_rgb()
+                if rgb_hdr is not None:
+                    cv2.imshow("rgb_img", rgb_img)
 
-            key = cv2.waitKey(1)
-            if key == ord('q'):
-                break
+                key = cv2.waitKey(1)
+                if key == ord('q'):
+                    break
 
             rate.sleep()
     finally:

@@ -9,43 +9,199 @@
 import os
 from hex_zmq_servers import HexLaunch, HexNodeConfig
 from hex_zmq_servers import HEX_ZMQ_SERVERS_PATH_DICT, HEX_ZMQ_CONFIGS_PATH_DICT
+from hex_zmq_servers import HEXARM_URDF_PATH_DICT
+
+# Yoco config
+YOCO = {"use_sim": True, "use_cam": False}
+
+# Mit config
+MIT_CFG = {
+    "kp": [200.0, 200.0, 250.0, 150.0, 100.0, 100.0, 20.0],
+    "kd": [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 1.0]
+}
+
+# Hexarm config
+HEXARM_CFG = {"arm_type": "archer_y6", "gripper_type": "gp100_p050"}
+if HEXARM_CFG["gripper_type"] == "empty":
+    HEXARM_CFG["use_gripper"] = False
+elif HEXARM_CFG["gripper_type"] == "gp100_p050":
+    HEXARM_CFG["use_gripper"] = True
+
+# Server config
+SRV_CFG = {
+    "mujoco_port": 12345,
+    "left_robot_port": 12346,
+    "right_robot_port": 12347,
+    "head_camera_port": 12348,
+    "left_camera_port": 12349,
+    "right_camera_port": 12350,
+}
+
+# Mujoco config
+MUJOCO_PARAMS = {
+    "states_rate": 500,
+    "img_rate": 30,
+    "tau_ctrl": True,
+    "headless": False,
+    "sens_ts": True,
+}
+
+# Robot config
+LEFT_ROBOT_PARAMS = {
+    "device_ip": "172.18.8.161",
+    "device_port": 8439,
+    "control_hz": 500,
+    "sens_ts": True,
+    "arm_type": HEXARM_CFG["arm_type"],
+    "use_gripper": HEXARM_CFG["use_gripper"],
+}
+RIGHT_ROBOT_PARAMS = {
+    "device_ip": "172.18.8.161",
+    "device_port": 8439,
+    "control_hz": 500,
+    "sens_ts": True,
+    "arm_type": HEXARM_CFG["arm_type"],
+    "use_gripper": HEXARM_CFG["use_gripper"],
+}
+
+# Camera config
+HEAD_CAMERA_PARAMS = {
+    "serial_number": "P050HYX5410E1A001",
+    "exposure": 16000,
+    "gain": 100,
+    "frame_rate": 30,
+    "sens_ts": True,
+}
+LEFT_CAMERA_PARAMS = {
+    "serial_number": "P050HYX5410E1A001",
+    "exposure": 16000,
+    "gain": 100,
+    "frame_rate": 30,
+    "sens_ts": True,
+}
+RIGHT_CAMERA_PARAMS = {
+    "serial_number": "P050HYX5410E1A001",
+    "exposure": 16000,
+    "gain": 100,
+    "frame_rate": 30,
+    "sens_ts": True,
+}
 
 # node params
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-HEX_ZMQ_SERVERS_DIR = f"{SCRIPT_DIR}/../../../hex_zmq_servers"
+HEX_ROBO_YOCO_DIR = f"{SCRIPT_DIR}/../../../hex_robo_yoco"
 NODE_PARAMS_DICT = {
     # cli
-    "mujoco_e3_desktop_cli": {
-        "name": "mujoco_e3_desktop_cli",
+    "e3_desktop_cli": {
+        "name": "e3_desktop_cli",
         "node_path":
-        f"{HEX_ZMQ_SERVERS_DIR}/../examples/basic/mujoco_e3_desktop/cli.py",
+        f"{HEX_ROBO_YOCO_DIR}/../examples/basic/e3_desktop/cli.py",
         "cfg_path":
-        f"{HEX_ZMQ_SERVERS_DIR}/../examples/basic/mujoco_e3_desktop/cli.json",
+        f"{HEX_ROBO_YOCO_DIR}/../examples/basic/e3_desktop/cli.json",
         "cfg": {
+            "yoco":
+            YOCO,
+            "model_path":
+            HEXARM_URDF_PATH_DICT[
+                f'{HEXARM_CFG["arm_type"]}_{HEXARM_CFG["gripper_type"]}'],
+            "use_gripper":
+            HEXARM_CFG["use_gripper"],
+            "mit_cfg":
+            MIT_CFG,
             "net": {
-                "ip": "127.0.0.1",
-                "port": 12345,
+                "mujoco_net": {
+                    "port": SRV_CFG["mujoco_port"]
+                },
+                "left_robot_net": {
+                    "port": SRV_CFG["left_robot_port"]
+                },
+                "right_robot_net": {
+                    "port": SRV_CFG["right_robot_port"]
+                },
+                "head_camera_net": {
+                    "port": SRV_CFG["head_camera_port"]
+                },
+                "left_camera_net": {
+                    "port": SRV_CFG["left_camera_port"]
+                },
+                "right_camera_net": {
+                    "port": SRV_CFG["right_camera_port"]
+                },
             },
         },
     },
-    # srv
-    "mujoco_e3_desktop_srv": {
+}
+
+if YOCO["use_sim"]:
+    NODE_PARAMS_DICT["mujoco_e3_desktop_srv"] = {
         "name": "mujoco_e3_desktop_srv",
         "node_path": HEX_ZMQ_SERVERS_PATH_DICT["mujoco_e3_desktop"],
         "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["mujoco_e3_desktop"],
         "cfg": {
             "net": {
                 "ip": "127.0.0.1",
-                "port": 12345,
+                "port": SRV_CFG["mujoco_port"],
             },
-            "params": {
-                "mit_kp":
-                [1500.0, 1500.0, 1500.0, 1500.0, 1500.0, 1500.0, 1500.0],
-                "mit_kd": [20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0],
-            },
+            "params": MUJOCO_PARAMS,
         },
-    },
-}
+    }
+else:
+    NODE_PARAMS_DICT["left_robot_e3_desktop_srv"] = {
+        "name": "left_robot_e3_desktop_srv",
+        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["robot_hexarm"],
+        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["robot_hexarm"],
+        "cfg": {
+            "net": {
+                "port": SRV_CFG["left_robot_port"],
+            },
+            "params": LEFT_ROBOT_PARAMS,
+        },
+    }
+    NODE_PARAMS_DICT["right_robot_e3_desktop_srv"] = {
+        "name": "right_robot_e3_desktop_srv",
+        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["robot_hexarm"],
+        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["robot_hexarm"],
+        "cfg": {
+            "net": {
+                "port": SRV_CFG["right_robot_port"],
+            },
+            "params": RIGHT_ROBOT_PARAMS,
+        },
+    }
+    if YOCO["use_cam"]:
+        NODE_PARAMS_DICT["head_camera_e3_desktop_srv"] = {
+            "name": "head_camera_e3_desktop_srv",
+            "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
+            "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
+            "cfg": {
+                "net": {
+                    "port": SRV_CFG["head_camera_port"],
+                },
+                "params": HEAD_CAMERA_PARAMS,
+            },
+        }
+        NODE_PARAMS_DICT["left_camera_e3_desktop_srv"] = {
+            "name": "left_camera_e3_desktop_srv",
+            "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
+            "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
+            "cfg": {
+                "net": {
+                    "port": SRV_CFG["left_camera_port"],
+                },
+                "params": LEFT_CAMERA_PARAMS,
+            },
+        }
+        NODE_PARAMS_DICT["right_camera_e3_desktop_srv"] = {
+            "name": "right_camera_e3_desktop_srv",
+            "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
+            "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
+            "cfg": {
+                "net": {
+                    "port": SRV_CFG["right_camera_port"],
+                },
+                "params": RIGHT_CAMERA_PARAMS,
+            },
+        }
 
 
 def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT):

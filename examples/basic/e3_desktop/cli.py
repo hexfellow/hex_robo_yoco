@@ -7,15 +7,29 @@
 ################################################################
 
 import argparse, json, time
+from hex_robo_yoco import HexYocoE3Desktop
+
+import cv2
+import numpy as np
 from hex_zmq_servers import (
     HexRate,
     HEX_LOG_LEVEL,
     hex_log,
-    HexMujocoE3DesktopClient,
 )
+from hex_robo_utils import HexDynUtil as DynUtil
+from hex_robo_utils import HexCtrlUtilMitJoint as CtrlUtil
 
-import cv2
-import numpy as np
+
+def wait_client_working(client, timeout: float = 5.0) -> bool:
+    for _ in range(int(timeout * 10)):
+        working = client.is_working()
+        if working is not None and working["cmd"] == "is_working_ok":
+            if hasattr(client, "seq_clear"):
+                client.seq_clear()
+            return True
+        else:
+            time.sleep(0.1)
+    return False
 
 
 def depth_to_cmap(depth_img: np.ndarray):
@@ -26,6 +40,24 @@ def depth_to_cmap(depth_img: np.ndarray):
     return depth_cmap
 
 
+def cal_tau_comp(
+    q_cur: np.ndarray,
+    dq_cur: np.ndarray,
+    dyn_util: DynUtil,
+    dofs: int,
+    use_gripper: bool,
+):
+    tau_comp = np.zeros(dofs)
+    q_arm = q_cur[:-1] if use_gripper else q_cur
+    dq_arm = dq_cur[:-1] if use_gripper else dq_cur
+    _, c_mat, g_vec, _, _ = dyn_util.dynamic_params(q_arm, dq_arm)
+    if use_gripper:
+        tau_comp[:-1] = c_mat @ dq_arm + g_vec
+    else:
+        tau_comp = c_mat @ dq_arm + g_vec
+    return tau_comp
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", type=str, required=True)
@@ -33,143 +65,139 @@ def main():
     cfg = json.loads(args.cfg)
 
     try:
+        yoco_config = cfg["yoco"]
         net_config = cfg["net"]
+        model_path = cfg["model_path"]
+        use_gripper = cfg["use_gripper"]
+        mit_kp = cfg["mit_cfg"]["kp"] if use_gripper else cfg["mit_cfg"][
+            "kp"][:-1]
+        mit_kd = cfg["mit_cfg"]["kd"] if use_gripper else cfg["mit_cfg"][
+            "kd"][:-1]
     except KeyError as ke:
         missing_key = ke.args[0]
         raise ValueError(
             f"e3_desktop_mujoco_config is not valid, missing key: {missing_key}"
         )
 
-    client = HexMujocoE3DesktopClient(net_config=net_config)
+    # init
+    client = HexYocoE3Desktop(yoco_config=yoco_config, net_config=net_config)
+    yoco_config = client.get_yoco_config()
+    dyn_util = DynUtil(
+        model_path=model_path,
+        end_pose=np.array(
+            [0.0, 0.0, 0.187, 0.7071068, 0.0, -0.7071068, 0.0],
+            dtype=np.float64,
+        ),
+    )
+    ctrl_util = CtrlUtil()
 
-    # wait for mujoco to work
-    for i in range(10):
-        hex_log(HEX_LOG_LEVEL["info"],
-                f"waiting for mujoco to work: {i * 0.5}s")
-        working = client.is_working()
-        if working is not None and working["cmd"] == "is_working_ok":
-            client.seq_clear()
-            break
-        else:
-            time.sleep(0.5)
+    # wait for yoco client to work
+    if not wait_client_working(client):
+        hex_log(HEX_LOG_LEVEL["err"], "yoco client is not working")
+        return
 
     # get dofs, limits and intri
     dofs = client.get_dofs()
     limits = client.get_limits()
-    intri = client.get_intri()
     hex_log(HEX_LOG_LEVEL["info"], f"dofs: {dofs}")
     hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits}")
-    hex_log(HEX_LOG_LEVEL["info"], f"intri: {intri}")
+    if yoco_config["use_cam"]:
+        intri = client.get_intri()
+        hex_log(HEX_LOG_LEVEL["info"], f"intri: {intri}")
 
     # get states, rgb and depth, and set cmds
-    rate = HexRate(250)
+    q_tar_left = np.array(
+        [-0.5, -0.0205679922, 2.57081467, -0.978840246, 0.5, 0.0, 0.5])
+    q_tar_right = np.array(
+        [0.5, -0.0205679922, 2.57081467, -0.978840246, -0.5, 0.0, 0.5])
+    rate = HexRate(1000)
     try:
+        q_cur_left = None
+        dq_cur_left = None
+        q_cur_right = None
+        dq_cur_right = None
         while True:
             left_states_hdr, left_states = client.get_states("left")
             if left_states_hdr is not None:
-                hex_log(
-                    HEX_LOG_LEVEL["info"],
-                    f"left_states_seq: {left_states_hdr['args']}; left_states_ts: {left_states_hdr['ts']}"
+                print(f"left_states_seq: {left_states_hdr['args']}")
+                q_cur_left = left_states[:, 0]
+                dq_cur_left = left_states[:, 1]
+
+            if (q_cur_left is not None) and (dq_cur_left is not None):
+                tau_comp_left = cal_tau_comp(
+                    q_cur_left,
+                    dq_cur_left,
+                    dyn_util,
+                    dofs["left"],
+                    use_gripper,
                 )
-                hex_log(HEX_LOG_LEVEL["info"],
-                        f"left_states pos: {left_states[:, 0]}")
-                hex_log(HEX_LOG_LEVEL["info"],
-                        f"left_states vel: {left_states[:, 1]}")
-                hex_log(HEX_LOG_LEVEL["info"],
-                        f"left_states eff: {left_states[:, 2]}")
+                cmds_left = ctrl_util(
+                    kp=mit_kp,
+                    kd=mit_kd,
+                    q_tar=q_tar_left,
+                    dq_tar=np.zeros(dofs["left"]),
+                    q_cur=q_cur_left,
+                    dq_cur=dq_cur_left,
+                    tau_comp=tau_comp_left,
+                )
+                _ = client.set_cmds(cmds_left, "left")
 
             right_states_hdr, right_states = client.get_states("right")
             if right_states_hdr is not None:
-                hex_log(
-                    HEX_LOG_LEVEL["info"],
-                    f"right_states_seq: {right_states_hdr['args']}; right_states_ts: {right_states_hdr['ts']}"
+                print(f"right_states_seq: {right_states_hdr['args']}")
+                q_cur_right = right_states[:, 0]
+                dq_cur_right = right_states[:, 1]
+
+            if (q_cur_right is not None) and (dq_cur_right is not None):
+                tau_comp_right = cal_tau_comp(
+                    q_cur_right,
+                    dq_cur_right,
+                    dyn_util,
+                    dofs["right"],
+                    use_gripper,
                 )
-                hex_log(HEX_LOG_LEVEL["info"],
-                        f"right_states pos: {right_states[:, 0]}")
-                hex_log(HEX_LOG_LEVEL["info"],
-                        f"right_states vel: {right_states[:, 1]}")
-                hex_log(HEX_LOG_LEVEL["info"],
-                        f"right_states eff: {right_states[:, 2]}")
-
-            obj_states_hdr, obj_states = client.get_states("obj")
-            if obj_states_hdr is not None:
-                hex_log(
-                    HEX_LOG_LEVEL["info"],
-                    f"obj_states_seq: {obj_states_hdr['args']}; obj_states_ts: {obj_states_hdr['ts']}"
+                cmds_right = ctrl_util(
+                    kp=mit_kp,
+                    kd=mit_kd,
+                    q_tar=q_tar_right,
+                    dq_tar=np.zeros(dofs["right"]),
+                    q_cur=q_cur_right,
+                    dq_cur=dq_cur_right,
+                    tau_comp=tau_comp_right,
                 )
-                hex_log(HEX_LOG_LEVEL["info"], f"obj_states: {obj_states}")
+                _ = client.set_cmds(cmds_right, "right")
 
-            cmds_left = np.array([
-                0.0,
-                -0.0205679922,
-                2.57081467,
-                -0.978840246,
-                0.0,
-                0.0,
-                0.5,
-            ])
-            cmds_right = np.array([
-                0.0,
-                -0.0205679922,
-                2.57081467,
-                -0.978840246,
-                0.0,
-                0.0,
-                0.5,
-            ])
+            if yoco_config["use_cam"]:
+                head_depth_hdr, head_depth_img = client.get_depth("head")
+                if head_depth_hdr is not None:
+                    head_depth_cmap = depth_to_cmap(head_depth_img)
+                    cv2.imshow("head_depth_cmap", head_depth_cmap)
 
-            # hex_log(HEX_LOG_LEVEL["info"], f"cmds: {cmds}")
-            _ = client.set_cmds(cmds_left, "left")
-            _ = client.set_cmds(cmds_right, "right")
+                head_rgb_hdr, head_rgb_img = client.get_rgb("head")
+                if head_rgb_hdr is not None:
+                    cv2.imshow("head_rgb_img", head_rgb_img)
 
-            head_depth_hdr, head_depth_img = client.get_depth("head")
-            if head_depth_hdr is not None:
-                print(
-                    f"head_depth_seq: {head_depth_hdr['args']}; head_depth_ts: {head_depth_hdr['ts']}"
-                )
-                head_depth_cmap = depth_to_cmap(head_depth_img)
-                cv2.imshow("head_depth_cmap", head_depth_cmap)
+                left_depth_hdr, left_depth_img = client.get_depth("left")
+                if left_depth_hdr is not None:
+                    left_depth_cmap = depth_to_cmap(left_depth_img)
+                    cv2.imshow("left_depth_cmap", left_depth_cmap)
 
-            head_rgb_hdr, head_rgb_img = client.get_rgb("head")
-            if head_rgb_hdr is not None:
-                print(
-                    f"head_rgb_seq: {head_rgb_hdr['args']}; head_rgb_ts: {head_rgb_hdr['ts']}"
-                )
-                cv2.imshow("head_rgb_img", head_rgb_img)
+                left_rgb_hdr, left_rgb_img = client.get_rgb("left")
+                if left_rgb_hdr is not None:
+                    cv2.imshow("left_rgb_img", left_rgb_img)
 
-            left_depth_hdr, left_depth_img = client.get_depth("left")
-            if left_depth_hdr is not None:
-                print(
-                    f"left_depth_seq: {left_depth_hdr['args']}; left_depth_ts: {left_depth_hdr['ts']}"
-                )
-                left_depth_cmap = depth_to_cmap(left_depth_img)
-                cv2.imshow("left_depth_cmap", left_depth_cmap)
+                right_depth_hdr, right_depth_img = client.get_depth("right")
+                if right_depth_hdr is not None:
+                    right_depth_cmap = depth_to_cmap(right_depth_img)
+                    cv2.imshow("right_depth_cmap", right_depth_cmap)
 
-            left_rgb_hdr, left_rgb_img = client.get_rgb("left")
-            if left_rgb_hdr is not None:
-                print(
-                    f"left_rgb_seq: {left_rgb_hdr['args']}; left_rgb_ts: {left_rgb_hdr['ts']}"
-                )
-                cv2.imshow("left_rgb_img", left_rgb_img)
+                right_rgb_hdr, right_rgb_img = client.get_rgb("right")
+                if right_rgb_hdr is not None:
+                    cv2.imshow("right_rgb_img", right_rgb_img)
 
-            right_depth_hdr, right_depth_img = client.get_depth("right")
-            if right_depth_hdr is not None:
-                print(
-                    f"right_depth_seq: {right_depth_hdr['args']}; right_depth_ts: {right_depth_hdr['ts']}"
-                )
-                right_depth_cmap = depth_to_cmap(right_depth_img)
-                cv2.imshow("right_depth_cmap", right_depth_cmap)
-
-            right_rgb_hdr, right_rgb_img = client.get_rgb("right")
-            if right_rgb_hdr is not None:
-                print(
-                    f"right_rgb_seq: {right_rgb_hdr['args']}; right_rgb_ts: {right_rgb_hdr['ts']}"
-                )
-                cv2.imshow("right_rgb_img", right_rgb_img)
-
-            key = cv2.waitKey(1)
-            if key == ord('q'):
-                break
+                key = cv2.waitKey(1)
+                if key == ord('q'):
+                    break
 
             rate.sleep()
     finally:

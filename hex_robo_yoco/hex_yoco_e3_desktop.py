@@ -6,29 +6,40 @@
 # Date  : 2025-11-21
 ################################################################
 
+import time
 import numpy as np
 from hex_zmq_servers import HexMujocoE3DesktopClient
 from hex_zmq_servers import HexRobotHexarmClient
-from hex_zmq_servers import HexCamBerxelClient
+
+BERXEL_CAMERA = True
+try:
+    from hex_zmq_servers import HexCamBerxelClient
+except ImportError:
+    BERXEL_CAMERA = False
 
 
 class HexYocoE3Desktop:
 
-    def __init__(self, yoco_config: dict):
+    def __init__(self, yoco_config: dict, net_config: dict):
         try:
             use_sim = yoco_config["use_sim"]
-            use_cam = yoco_config["use_cam"]
-            if use_sim:
-                mujoco_net_config = yoco_config["mujoco_net"]
+            if BERXEL_CAMERA:
+                use_cam = yoco_config["use_cam"]
             else:
-                left_robot_net_config = yoco_config["left_robot_net"]
-                right_robot_net_config = yoco_config["right_robot_net"]
-                head_camera_net_config = yoco_config["head_camera_net"]
-                left_camera_net_config = yoco_config["left_camera_net"]
-                right_camera_net_config = yoco_config["right_camera_net"]
+                print("HexCamBerxelClient not found, setting use_cam to False")
+                use_cam = False
+            if use_sim:
+                mujoco_net_config = net_config["mujoco_net"]
+            else:
+                left_robot_net_config = net_config["left_robot_net"]
+                right_robot_net_config = net_config["right_robot_net"]
+                head_camera_net_config = net_config["head_camera_net"]
+                left_camera_net_config = net_config["left_camera_net"]
+                right_camera_net_config = net_config["right_camera_net"]
         except KeyError as ke:
             missing_key = ke.args[0]
-            raise ValueError(f"Missing key: [{missing_key}] in yoco_config")
+            raise ValueError(
+                f"Missing key: [{missing_key}] in yoco_config or net_config")
 
         self.__use_sim = use_sim
         self.__use_cam = use_cam
@@ -54,7 +65,14 @@ class HexYocoE3Desktop:
             if client is not None:
                 client.close()
 
+    def get_yoco_config(self):
+        return {
+            "use_sim": self.__use_sim,
+            "use_cam": self.__use_cam,
+        }
+
     def is_working(self):
+        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].is_working()
         else:
@@ -69,18 +87,21 @@ class HexYocoE3Desktop:
             return left_working and right_working and left_camera_working and right_camera_working and head_camera_working
 
     def reset(self):
+        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].reset()
         else:
             raise ValueError("`reset` is not supported in real mode")
 
     def get_obj_pose(self):
+        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].get_states("obj")
         else:
             raise ValueError("`get_obj_pose` is not supported in real mode")
 
     def seq_clear(self):
+        time.sleep(0)
         if self.__use_sim:
             clear_hdr = self.__clients["mujoco"].seq_clear()
             return {
@@ -94,6 +115,7 @@ class HexYocoE3Desktop:
             }
 
     def get_dofs(self):
+        time.sleep(0)
         if self.__use_sim:
             dofs_list = self.__clients["mujoco"].get_dofs()
             return {
@@ -107,22 +129,24 @@ class HexYocoE3Desktop:
             }
 
     def get_limits(self):
+        time.sleep(0)
         if self.__use_sim:
             limits_list = self.__clients["mujoco"].get_limits()
             return {
-                "left": limits_list[0],
-                "right": limits_list[1],
+                "left": limits_list[0].reshape(-1, 1, 2),
+                "right": limits_list[1].reshape(-1, 1, 2),
             }
         else:
             return {
-                "left": self.__clients["left_robot"].get_limits(),
-                "right": self.__clients["right_robot"].get_limits(),
+                "left": self.__clients["left_robot"].get_limits()[0],
+                "right": self.__clients["right_robot"].get_limits()[0],
             }
 
     def get_states(self, robot_name: str):
         if robot_name not in ["left", "right"]:
             raise ValueError(f"robot_name must be in ['left', 'right']")
 
+        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].get_states(robot_name)
         else:
@@ -139,6 +163,7 @@ class HexYocoE3Desktop:
         if robot_name not in ["left", "right"]:
             raise ValueError(f"robot_name must be in ['left', 'right']")
 
+        time.sleep(0)
         if self.__use_sim:
             return self.__clients["mujoco"].set_cmds(cmds, robot_name)
         else:
@@ -152,9 +177,11 @@ class HexYocoE3Desktop:
             return self.__clients[robot_key].set_cmds(cmds)
 
     def get_intri(self):
+        time.sleep(0)
         if self.__use_cam:
             if self.__use_sim:
-                intri_array = self.__clients["mujoco"].get_intri()
+                _, intri_array = self.__clients["mujoco"].get_intri()
+                print(f"intri_array: {intri_array}")
                 return {
                     "head": intri_array[0],
                     "left": intri_array[1],
@@ -162,9 +189,9 @@ class HexYocoE3Desktop:
                 }
             else:
                 return {
-                    "head": self.__clients["head_camera"].get_intri(),
-                    "left": self.__clients["left_camera"].get_intri(),
-                    "right": self.__clients["right_camera"].get_intri(),
+                    "head": self.__clients["head_camera"].get_intri()[1],
+                    "left": self.__clients["left_camera"].get_intri()[1],
+                    "right": self.__clients["right_camera"].get_intri()[1],
                 }
         else:
             raise ValueError("`get_intri` is not supported without `use_cam`")
@@ -174,6 +201,7 @@ class HexYocoE3Desktop:
             raise ValueError(
                 f"camera_name must be in ['head', 'left', 'right']")
 
+        time.sleep(0)
         if self.__use_cam:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_rgb(camera_name)
@@ -196,6 +224,7 @@ class HexYocoE3Desktop:
             raise ValueError(
                 f"camera_name must be in ['head', 'left', 'right']")
 
+        time.sleep(0)
         if self.__use_cam:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_depth(camera_name)

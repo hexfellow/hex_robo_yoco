@@ -45,9 +45,9 @@ ROBOT_PARAMS = {
     "device_port": 8439,
     "control_hz": 500,
     "sens_ts": True,
+    "arm_type": HEXARM_CFG["arm_type"],
+    "use_gripper": HEXARM_CFG["use_gripper"],
 }
-ROBOT_ARM_TYPE = HEXARM_CFG["arm_type"]
-ROBOT_USE_GRIPPER = HEXARM_CFG["use_gripper"]
 
 # Camera config
 CAMERA_PARAMS = {
