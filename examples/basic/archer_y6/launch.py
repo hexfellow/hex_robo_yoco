@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
+################################################################
+# Copyright 2025 Dong Zhaorui. All rights reserved.
+# Author: Dong Zhaorui 847235539@qq.com
+# Date  : 2025-09-25
+################################################################
+
+import os
+from hex_zmq_servers import HexLaunch, HexNodeConfig
+from hex_zmq_servers import HEX_ZMQ_SERVERS_PATH_DICT, HEX_ZMQ_CONFIGS_PATH_DICT
+from hex_zmq_servers import HEXARM_URDF_PATH_DICT
+
+# Yoco config
+YOCO = {"use_sim": True, "use_cam": True}
+
+# Mit config
+MIT_CFG = {
+    "kp": [200.0, 200.0, 250.0, 150.0, 100.0, 100.0, 20.0],
+    "kd": [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 1.0]
+}
+
+# Hexarm config
+HEXARM_CFG = {"arm_type": "archer_y6", "gripper_type": "gp100_p050"}
+if HEXARM_CFG["gripper_type"] == "empty":
+    HEXARM_CFG["use_gripper"] = False
+elif HEXARM_CFG["gripper_type"] == "gp100_p050":
+    HEXARM_CFG["use_gripper"] = True
+
+# Server config
+SRV_CFG = {"mujoco_port": 12345, "robot_port": 12346, "camera_port": 12347}
+
+# Mujoco config
+MUJOCO_PARAMS = {
+    "states_rate": 500,
+    "img_rate": 30,
+    "tau_ctrl": True,
+    "headless": False,
+    "sens_ts": True,
+}
+
+# Robot config
+ROBOT_PARAMS = {
+    "device_ip": "172.18.8.161",
+    "device_port": 8439,
+    "control_hz": 500,
+    "sens_ts": True,
+}
+ROBOT_ARM_TYPE = HEXARM_CFG["arm_type"]
+ROBOT_USE_GRIPPER = HEXARM_CFG["use_gripper"]
+
+# Camera config
+CAMERA_PARAMS = {
+    "serial_number": "P050HYX5410E1A001",
+    "exposure": 16000,
+    "gain": 100,
+    "frame_rate": 30,
+    "sens_ts": True,
+}
+
+# node params
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+HEX_ROBO_YOCO_DIR = f"{SCRIPT_DIR}/../../../hex_robo_yoco"
+NODE_PARAMS_DICT = {
+    # cli
+    "archer_y6_cli": {
+        "name": "archer_y6_cli",
+        "node_path": f"{HEX_ROBO_YOCO_DIR}/../examples/basic/archer_y6/cli.py",
+        "cfg_path":
+        f"{HEX_ROBO_YOCO_DIR}/../examples/basic/archer_y6/cli.json",
+        "cfg": {
+            "yoco":
+            YOCO,
+            "model_path":
+            HEXARM_URDF_PATH_DICT[
+                f'{HEXARM_CFG["arm_type"]}_{HEXARM_CFG["gripper_type"]}'],
+            "use_gripper":
+            HEXARM_CFG["use_gripper"],
+            "mit_cfg":
+            MIT_CFG,
+            "net": {
+                "mujoco_net": {
+                    "port": SRV_CFG["mujoco_port"]
+                },
+                "robot_net": {
+                    "port": SRV_CFG["robot_port"]
+                },
+                "camera_net": {
+                    "port": SRV_CFG["camera_port"]
+                },
+            },
+        },
+    },
+}
+
+if YOCO["use_sim"]:
+    NODE_PARAMS_DICT["mujoco_archer_y6_srv"] = {
+        "name": "mujoco_archer_y6_srv",
+        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["mujoco_archer_y6"],
+        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["mujoco_archer_y6"],
+        "cfg": {
+            "net": {
+                "ip": "127.0.0.1",
+                "port": SRV_CFG["mujoco_port"],
+            },
+            "params": MUJOCO_PARAMS,
+        },
+    }
+else:
+    NODE_PARAMS_DICT["robot_archer_y6_srv"] = {
+        "name": "robot_archer_y6_srv",
+        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["robot_hexarm"],
+        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["robot_hexarm"],
+        "cfg": {
+            "net": {
+                "port": SRV_CFG["robot_port"],
+            },
+            "params": ROBOT_PARAMS,
+        },
+    }
+    if YOCO["use_cam"]:
+        NODE_PARAMS_DICT["camera_archer_y6_srv"] = {
+            "name": "camera_archer_y6_srv",
+            "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
+            "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
+            "cfg": {
+                "net": {
+                    "port": SRV_CFG["camera_port"],
+                },
+                "params": CAMERA_PARAMS,
+            },
+        }
+
+
+def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT):
+    return HexNodeConfig(
+        HexNodeConfig.parse_node_params_dict(
+            node_params_dict,
+            NODE_PARAMS_DICT,
+        ))
+
+
+def main():
+    node_cfgs = get_node_cfgs()
+    launch = HexLaunch(node_cfgs)
+    launch.run()
+
+
+if __name__ == '__main__':
+    main()

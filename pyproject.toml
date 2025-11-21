@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools >= 61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hex_robo_yoco"
+version = "0.0.1"
+description = "HEXFELLOW YOCO"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{ name = "Dong Zhaorui", email = "joray.dong@hexfellow.com" }]
+maintainers = [
+  { name = "jecjune", email = "zejun.chen@hexfellow.com" },
+  { name = "Dong Zhaorui", email = "joray.dong@hexfellow.com" },
+]
+keywords = ["hex_robo_yoco"]
+requires-python = ">=3.8"
+dependencies = ["hex_zmq_servers[all]>=0.3.0,<0.4.0"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Homepage = "https://github.com/hexfellow/hex_robo_yoco"
+Repository = "https://github.com/hexfellow/hex_robo_yoco.git"
+"Bug Tracker" = "https://github.com/hexfellow/hex_robo_yoco/issues"
+Documentation = "https://github.com/hexfellow/hex_robo_yoco/wiki"

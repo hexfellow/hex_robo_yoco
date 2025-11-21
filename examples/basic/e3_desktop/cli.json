@@ -1,0 +1,9 @@
+{
+    "net": {
+        "ip": "127.0.0.1",
+        "port": 12345,
+        "client_timeout_ms": 200,
+        "server_timeout_ms": 1000,
+        "server_num_workers": 4
+    }
+}
