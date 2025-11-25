@@ -6,16 +6,26 @@
 # Date  : 2025-11-21
 ################################################################
 
-import time
 import numpy as np
 from hex_zmq_servers import HexMujocoArcherY6Client
 from hex_zmq_servers import HexRobotHexarmClient
+from hex_zmq_servers import HexCamRGBClient
 
-BERXEL_CAMERA = True
-try:
+from importlib.util import find_spec
+
+_HAS_BERXEL = find_spec("berxel_py_wrapper") is not None
+_HAS_REALSENSE = find_spec("pyrealsense2") is not None
+if _HAS_BERXEL:
     from hex_zmq_servers import HexCamBerxelClient
-except ImportError:
-    BERXEL_CAMERA = False
+if _HAS_REALSENSE:
+    from hex_zmq_servers import HexCamRealsenseClient
+
+CAMERA_CONFIG = {
+    "empty": (False, False),
+    "rgb": (True, False),
+    "berxel": (True, True),
+    "realsense": (True, True),
+}
 
 
 class HexYocoArcherY6:
@@ -23,23 +33,29 @@ class HexYocoArcherY6:
     def __init__(self, yoco_config: dict, net_config: dict):
         try:
             use_sim = yoco_config["use_sim"]
-            if BERXEL_CAMERA:
-                use_cam = yoco_config["use_cam"]
-            else:
-                print("HexCamBerxelClient not found, setting use_cam to False")
-                use_cam = False
+            cam_type = yoco_config["cam_type"]
+            if cam_type == "berxel" and not _HAS_BERXEL:
+                print(
+                    "`berxel_py_wrapper` not found, setting cam_type to empty")
+                cam_type = "empty"
+            elif cam_type == "realsense" and not _HAS_REALSENSE:
+                print("`pyrealsense2` not found, setting cam_type to empty")
+                cam_type = "empty"
             if use_sim:
                 mujoco_net_config = net_config["mujoco_net"]
             else:
                 robot_net_config = net_config["robot_net"]
-                camera_net_config = net_config["camera_net"]
+                camera_net_config = net_config[
+                    "camera_net"] if cam_type != "empty" else None
         except KeyError as ke:
             missing_key = ke.args[0]
             raise ValueError(
                 f"Missing key: [{missing_key}] in yoco_config or net_config")
 
         self.__use_sim = use_sim
-        self.__use_cam = use_cam
+        self.__cam_type = cam_type
+        self.__use_rgb, self.__use_depth = CAMERA_CONFIG.get(
+            cam_type, (False, False))
 
         self.__clients = {}
         if self.__use_sim:
@@ -48,8 +64,16 @@ class HexYocoArcherY6:
         else:
             self.__clients["robot"] = HexRobotHexarmClient(
                 net_config=robot_net_config)
-            self.__clients["camera"] = HexCamBerxelClient(
-                net_config=camera_net_config) if self.__use_cam else None
+            self.__clients["camera"] = None
+            if cam_type == "berxel":
+                self.__clients["camera"] = HexCamBerxelClient(
+                    net_config=camera_net_config)
+            elif cam_type == "realsense":
+                self.__clients["camera"] = HexCamRealsenseClient(
+                    net_config=camera_net_config)
+            elif cam_type == "rgb":
+                self.__clients["camera"] = HexCamRGBClient(
+                    net_config=camera_net_config)
 
     def __del__(self):
         for client in self.__clients.values():
@@ -59,7 +83,13 @@ class HexYocoArcherY6:
     def get_yoco_config(self):
         return {
             "use_sim": self.__use_sim,
-            "use_cam": self.__use_cam,
+            "cam_type": self.__cam_type,
+        }
+
+    def get_cam_state(self):
+        return {
+            "use_rgb": self.__use_rgb,
+            "use_depth": self.__use_depth,
         }
 
     def is_working(self):
@@ -114,7 +144,7 @@ class HexYocoArcherY6:
             return self.__clients["robot"].set_cmds(cmds)
 
     def get_intri(self):
-        if self.__use_cam:
+        if self.__use_rgb or self.__use_depth:
             if self.__use_sim:
                 _, intri_array = self.__clients["mujoco"].get_intri()
                 return intri_array
@@ -122,22 +152,25 @@ class HexYocoArcherY6:
                 _, intri_array = self.__clients["camera"].get_intri()
                 return intri_array
         else:
-            raise ValueError("`get_intri` is not supported without `use_cam`")
+            raise ValueError(
+                f"`get_intri` is not supported with type {self.__cam_type}")
 
     def get_rgb(self):
-        if self.__use_cam:
+        if self.__use_rgb:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_rgb()
             else:
                 return self.__clients["camera"].get_rgb()
         else:
-            raise ValueError("`get_rgb` is not supported without `use_cam`")
+            raise ValueError(
+                f"`get_rgb` is not supported with type {self.__cam_type}")
 
     def get_depth(self):
-        if self.__use_cam:
+        if self.__use_depth:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_depth()
             else:
                 return self.__clients["camera"].get_depth()
         else:
-            raise ValueError("`get_depth` is not supported without `use_cam`")
+            raise ValueError(
+                f"`get_depth` is not supported with type {self.__cam_type}")

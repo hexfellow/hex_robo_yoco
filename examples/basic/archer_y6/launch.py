@@ -12,7 +12,7 @@ from hex_zmq_servers import HEX_ZMQ_SERVERS_PATH_DICT, HEX_ZMQ_CONFIGS_PATH_DICT
 from hex_zmq_servers import HEXARM_URDF_PATH_DICT
 
 # Yoco config
-YOCO = {"use_sim": True, "use_cam": False}
+YOCO = {"use_sim": True, "cam_type": "berxel"}
 
 # Mit config
 MIT_CFG = {
@@ -34,9 +34,12 @@ SRV_CFG = {"mujoco_port": 12345, "robot_port": 12346, "camera_port": 12347}
 MUJOCO_PARAMS = {
     "states_rate": 500,
     "img_rate": 30,
-    "tau_ctrl": True,
+    "tau_ctrl": False,
     "headless": True,
     "sens_ts": True,
+    "mit_kp": MIT_CFG["kp"],
+    "mit_kd": MIT_CFG["kd"],
+    "cam_type": YOCO["cam_type"],
 }
 
 # Robot config
@@ -47,6 +50,8 @@ ROBOT_PARAMS = {
     "sens_ts": True,
     "arm_type": HEXARM_CFG["arm_type"],
     "use_gripper": HEXARM_CFG["use_gripper"],
+    "mit_kp": MIT_CFG["kp"],
+    "mit_kd": MIT_CFG["kd"],
 }
 
 # Camera config
@@ -118,7 +123,7 @@ else:
             "params": ROBOT_PARAMS,
         },
     }
-    if YOCO["use_cam"]:
+    if YOCO["cam_type"] == "berxel":
         NODE_PARAMS_DICT["camera_archer_y6_srv"] = {
             "name": "camera_archer_y6_srv",
             "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],

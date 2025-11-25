@@ -6,16 +6,26 @@
 # Date  : 2025-11-21
 ################################################################
 
-import time
 import numpy as np
 from hex_zmq_servers import HexMujocoE3DesktopClient
 from hex_zmq_servers import HexRobotHexarmClient
+from hex_zmq_servers import HexCamRGBClient
 
-BERXEL_CAMERA = True
-try:
+from importlib.util import find_spec
+
+_HAS_BERXEL = find_spec("berxel_py_wrapper") is not None
+_HAS_REALSENSE = find_spec("pyrealsense2") is not None
+if _HAS_BERXEL:
     from hex_zmq_servers import HexCamBerxelClient
-except ImportError:
-    BERXEL_CAMERA = False
+if _HAS_REALSENSE:
+    from hex_zmq_servers import HexCamRealsenseClient
+
+CAMERA_CONFIG = {
+    "empty": (False, False),
+    "rgb": (True, False),
+    "berxel": (True, True),
+    "realsense": (True, True),
+}
 
 
 class HexYocoE3Desktop:
@@ -23,26 +33,40 @@ class HexYocoE3Desktop:
     def __init__(self, yoco_config: dict, net_config: dict):
         try:
             use_sim = yoco_config["use_sim"]
-            if BERXEL_CAMERA:
-                use_cam = yoco_config["use_cam"]
-            else:
-                print("HexCamBerxelClient not found, setting use_cam to False")
-                use_cam = False
+            cam_type = yoco_config["cam_type"]
+            for idx in range(len(cam_type)):
+                if cam_type[idx] == "berxel" and not _HAS_BERXEL:
+                    print(
+                        "`berxel_py_wrapper` not found, setting cam_type to empty"
+                    )
+                    cam_type[idx] = "empty"
+                elif cam_type[idx] == "realsense" and not _HAS_REALSENSE:
+                    print(
+                        "`pyrealsense2` not found, setting cam_type to empty")
+                    cam_type[idx] = "empty"
             if use_sim:
                 mujoco_net_config = net_config["mujoco_net"]
             else:
                 left_robot_net_config = net_config["left_robot_net"]
                 right_robot_net_config = net_config["right_robot_net"]
-                head_camera_net_config = net_config["head_camera_net"]
-                left_camera_net_config = net_config["left_camera_net"]
-                right_camera_net_config = net_config["right_camera_net"]
+                camera_net_config = {}
+                for idx, cam_name in enumerate(["head", "left", "right"]):
+                    camera_net_config[cam_name] = net_config[
+                        f"{cam_name}_camera_net"] if cam_type[
+                            idx] != "empty" else None
         except KeyError as ke:
             missing_key = ke.args[0]
             raise ValueError(
                 f"Missing key: [{missing_key}] in yoco_config or net_config")
 
         self.__use_sim = use_sim
-        self.__use_cam = use_cam
+        self.__cam_type = cam_type
+        self.__use_rgb, self.__use_depth, use_rgbd = {}, {}, {}
+        for idx, cam_name in enumerate(["head", "left", "right"]):
+            self.__use_rgb[cam_name], self.__use_depth[
+                cam_name] = CAMERA_CONFIG.get(cam_type[idx], (False, False))
+            use_rgbd[cam_name] = self.__use_rgb[cam_name] and self.__use_depth[
+                cam_name]
 
         self.__clients = {}
         if self.__use_sim:
@@ -53,12 +77,18 @@ class HexYocoE3Desktop:
                 net_config=left_robot_net_config)
             self.__clients["right_robot"] = HexRobotHexarmClient(
                 net_config=right_robot_net_config)
-            self.__clients["head_camera"] = HexCamBerxelClient(
-                net_config=head_camera_net_config) if self.__use_cam else None
-            self.__clients["left_camera"] = HexCamBerxelClient(
-                net_config=left_camera_net_config) if self.__use_cam else None
-            self.__clients["right_camera"] = HexCamBerxelClient(
-                net_config=right_camera_net_config) if self.__use_cam else None
+            for cam_name in ["head", "left", "right"]:
+                self.__clients[cam_name] = None
+                if cam_type[idx] == "berxel":
+                    self.__clients[f"{cam_name}_camera"] = HexCamBerxelClient(
+                        net_config=camera_net_config[cam_name])
+                elif cam_type[idx] == "realsense":
+                    self.__clients[
+                        f"{cam_name}_camera"] = HexCamRealsenseClient(
+                            net_config=camera_net_config[cam_name])
+                elif cam_type[idx] == "rgb":
+                    self.__clients[f"{cam_name}_camera"] = HexCamRGBClient(
+                        net_config=camera_net_config[cam_name])
 
     def __del__(self):
         for client in self.__clients.values():
@@ -68,7 +98,13 @@ class HexYocoE3Desktop:
     def get_yoco_config(self):
         return {
             "use_sim": self.__use_sim,
-            "use_cam": self.__use_cam,
+            "cam_type": self.__cam_type,
+        }
+
+    def get_cam_state(self):
+        return {
+            "use_rgb": self.__use_rgb,
+            "use_depth": self.__use_depth,
         }
 
     def is_working(self):
@@ -77,13 +113,12 @@ class HexYocoE3Desktop:
         else:
             left_working = self.__clients["left_robot"].is_working()
             right_working = self.__clients["right_robot"].is_working()
-            head_camera_working = self.__clients["head_camera"].is_working(
-            ) if self.__clients["head_camera"] is not None else True
-            left_camera_working = self.__clients["left_camera"].is_working(
-            ) if self.__clients["left_camera"] is not None else True
-            right_camera_working = self.__clients["right_camera"].is_working(
-            ) if self.__clients["right_camera"] is not None else True
-            return left_working and right_working and left_camera_working and right_camera_working and head_camera_working
+            camera_working = True
+            for cam_name in ["head", "left", "right"]:
+                camera_working = camera_working and (
+                    self.__clients[cam_name].is_working()
+                    if self.__clients[cam_name] is not None else True)
+            return left_working and right_working and camera_working
 
     def reset(self):
         if self.__use_sim:
@@ -169,7 +204,11 @@ class HexYocoE3Desktop:
             return self.__clients[robot_key].set_cmds(cmds)
 
     def get_intri(self):
-        if self.__use_cam:
+        use_cam = False
+        for cam_name in ["head", "left", "right"]:
+            use_cam = use_cam or self.__use_rgb[cam_name] or self.__use_depth[
+                cam_name]
+        if use_cam:
             if self.__use_sim:
                 _, intri_array = self.__clients["mujoco"].get_intri()
                 print(f"intri_array: {intri_array}")
@@ -180,53 +219,47 @@ class HexYocoE3Desktop:
                 }
             else:
                 return {
-                    "head": self.__clients["head_camera"].get_intri()[1],
-                    "left": self.__clients["left_camera"].get_intri()[1],
-                    "right": self.__clients["right_camera"].get_intri()[1],
+                    "head":
+                    self.__clients["head_camera"].get_intri()[1] if
+                    self.__clients["head_camera"] is not None else np.zeros(4),
+                    "left":
+                    self.__clients["left_camera"].get_intri()[1] if
+                    self.__clients["left_camera"] is not None else np.zeros(4),
+                    "right":
+                    self.__clients["right_camera"].get_intri()[1]
+                    if self.__clients["right_camera"] is not None else
+                    np.zeros(4),
                 }
         else:
-            raise ValueError("`get_intri` is not supported without `use_cam`")
+            raise ValueError(
+                f"`get_intri` is not supported with type {self.__cam_type}")
 
     def get_rgb(self, camera_name: str):
         if camera_name not in ["head", "left", "right"]:
             raise ValueError(
                 f"camera_name must be in ['head', 'left', 'right']")
 
-        if self.__use_cam:
+        if self.__use_rgb[camera_name]:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_rgb(camera_name)
             else:
-                camera_key = None
-                if camera_name == "head":
-                    camera_key = "head_camera"
-                elif camera_name == "left":
-                    camera_key = "left_camera"
-                elif camera_name == "right":
-                    camera_key = "right_camera"
-                else:
-                    raise ValueError(f"Invalid camera name: [{camera_name}]")
-                return self.__clients[camera_key].get_rgb()
+                return self.__clients[f"{camera_name}_camera"].get_rgb()
         else:
-            raise ValueError("`get_rgb` is not supported without `use_cam`")
+            raise ValueError(
+                f"`get_rgb` is not supported with type {self.__cam_type[camera_name]}"
+            )
 
     def get_depth(self, camera_name: str):
         if camera_name not in ["head", "left", "right"]:
             raise ValueError(
                 f"camera_name must be in ['head', 'left', 'right']")
 
-        if self.__use_cam:
+        if self.__use_depth[camera_name]:
             if self.__use_sim:
                 return self.__clients["mujoco"].get_depth(camera_name)
             else:
-                camera_key = None
-                if camera_name == "head":
-                    camera_key = "head_camera"
-                elif camera_name == "left":
-                    camera_key = "left_camera"
-                elif camera_name == "right":
-                    camera_key = "right_camera"
-                else:
-                    raise ValueError(f"Invalid camera name: [{camera_name}]")
-                return self.__clients[camera_key].get_depth()
+                return self.__clients[f"{camera_name}_camera"].get_depth()
         else:
-            raise ValueError("`get_depth` is not supported without `use_cam`")
+            raise ValueError(
+                f"`get_depth` is not supported with type {self.__cam_type[camera_name]}"
+            )

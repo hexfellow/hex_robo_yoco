@@ -12,7 +12,7 @@ from hex_zmq_servers import HEX_ZMQ_SERVERS_PATH_DICT, HEX_ZMQ_CONFIGS_PATH_DICT
 from hex_zmq_servers import HEXARM_URDF_PATH_DICT
 
 # Yoco config
-YOCO = {"use_sim": True, "use_cam": False}
+YOCO = {"use_sim": True, "cam_type": ["berxel", "berxel", "berxel"]}
 
 # Mit config
 MIT_CFG = {
@@ -41,9 +41,12 @@ SRV_CFG = {
 MUJOCO_PARAMS = {
     "states_rate": 500,
     "img_rate": 30,
-    "tau_ctrl": True,
+    "tau_ctrl": False,
     "headless": True,
     "sens_ts": True,
+    "mit_kp": MIT_CFG["kp"],
+    "mit_kd": MIT_CFG["kd"],
+    "cam_type": YOCO["cam_type"],
 }
 
 # Robot config
@@ -54,6 +57,8 @@ LEFT_ROBOT_PARAMS = {
     "sens_ts": True,
     "arm_type": HEXARM_CFG["arm_type"],
     "use_gripper": HEXARM_CFG["use_gripper"],
+    "mit_kp": MIT_CFG["kp"],
+    "mit_kd": MIT_CFG["kd"],
 }
 RIGHT_ROBOT_PARAMS = {
     "device_ip": "172.18.8.161",
@@ -62,6 +67,8 @@ RIGHT_ROBOT_PARAMS = {
     "sens_ts": True,
     "arm_type": HEXARM_CFG["arm_type"],
     "use_gripper": HEXARM_CFG["use_gripper"],
+    "mit_kp": MIT_CFG["kp"],
+    "mit_kd": MIT_CFG["kd"],
 }
 
 # Camera config
@@ -168,7 +175,7 @@ else:
             "params": RIGHT_ROBOT_PARAMS,
         },
     }
-    if YOCO["use_cam"]:
+    if YOCO["cam_type"][0] == "berxel":
         NODE_PARAMS_DICT["head_camera_e3_desktop_srv"] = {
             "name": "head_camera_e3_desktop_srv",
             "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
@@ -180,6 +187,7 @@ else:
                 "params": HEAD_CAMERA_PARAMS,
             },
         }
+    if YOCO["cam_type"][1] == "berxel":
         NODE_PARAMS_DICT["left_camera_e3_desktop_srv"] = {
             "name": "left_camera_e3_desktop_srv",
             "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
@@ -191,6 +199,7 @@ else:
                 "params": LEFT_CAMERA_PARAMS,
             },
         }
+    if YOCO["cam_type"][2] == "berxel":
         NODE_PARAMS_DICT["right_camera_e3_desktop_srv"] = {
             "name": "right_camera_e3_desktop_srv",
             "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],

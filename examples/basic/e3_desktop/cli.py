@@ -17,13 +17,11 @@ from hex_zmq_servers import (
     hex_log,
 )
 from hex_robo_utils import HexDynUtil as DynUtil
-from hex_robo_utils import HexCtrlUtilMitJoint as CtrlUtil
 
 
 def wait_client_working(client, timeout: float = 5.0) -> bool:
     for _ in range(int(timeout * 10)):
-        working = client.is_working()
-        if working is not None and working["cmd"] == "is_working_ok":
+        if client.is_working():
             if hasattr(client, "seq_clear"):
                 client.seq_clear()
             return True
@@ -89,19 +87,25 @@ def main():
             dtype=np.float64,
         ),
     )
-    ctrl_util = CtrlUtil()
 
     # wait for yoco client to work
     if not wait_client_working(client):
         hex_log(HEX_LOG_LEVEL["err"], "yoco client is not working")
         return
 
-    # get dofs, limits and intri
+    # get dofs and limits
     dofs = client.get_dofs()
     limits = client.get_limits()
     hex_log(HEX_LOG_LEVEL["info"], f"dofs: {dofs}")
     hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits}")
-    if yoco_config["use_cam"]:
+
+    # get cam state and intri
+    cam_state = client.get_cam_state()
+    has_cam = False
+    for cam_name in ["head", "left", "right"]:
+        has_cam = has_cam or cam_state["use_rgb"][cam_name] or cam_state[
+            "use_depth"][cam_name]
+    if has_cam:
         intri = client.get_intri()
         hex_log(HEX_LOG_LEVEL["info"], f"intri: {intri}")
 
@@ -131,8 +135,8 @@ def main():
 
             left_get_states_start_time = time.perf_counter_ns()
             left_states_hdr, left_states = client.get_states("left")
-            left_get_states_elapsed_time = (time.perf_counter_ns(
-            ) - left_get_states_start_time) / 1e6
+            left_get_states_elapsed_time = (time.perf_counter_ns() -
+                                            left_get_states_start_time) / 1e6
             if left_get_states_elapsed_time > 1.0:
                 err_dict["left_get_states"] += 1
             if left_states_hdr is not None:
@@ -141,8 +145,8 @@ def main():
 
             right_get_states_start_time = time.perf_counter_ns()
             right_states_hdr, right_states = client.get_states("right")
-            right_get_states_elapsed_time = (time.perf_counter_ns(
-            ) - right_get_states_start_time) / 1e6
+            right_get_states_elapsed_time = (time.perf_counter_ns() -
+                                             right_get_states_start_time) / 1e6
             if right_get_states_elapsed_time > 1.0:
                 err_dict["right_get_states"] += 1
             if right_states_hdr is not None:
@@ -158,23 +162,18 @@ def main():
                     dofs=dofs["left"],
                     use_gripper=use_gripper,
                 )
-                cmds_left = ctrl_util(
-                    kp=mit_kp,
-                    kd=mit_kd,
-                    q_tar=q_tar_left,
-                    dq_tar=np.zeros(dofs["left"]),
-                    q_cur=q_cur_left,
-                    dq_cur=dq_cur_left,
-                    tau_comp=tau_comp_left,
-                )
-                left_calc_tau_comp_elapsed_time = (time.perf_counter_ns(
-                ) - left_calc_tau_comp_start_time) / 1e6
+                # ((q_tar_0, dq_tar_0, tau_comp_0, kp_0, kd_0), (q_tar_1, dq_tar_1, tau_comp_1, kp_1, kd_1), ...)
+                cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left"]),
+                                       tau_comp_left, mit_kp, mit_kd)).T
+                left_calc_tau_comp_elapsed_time = (
+                    time.perf_counter_ns() -
+                    left_calc_tau_comp_start_time) / 1e6
                 if left_calc_tau_comp_elapsed_time > 0.2:
                     err_dict["left_calc_cmds"] += 1
                 left_set_cmds_start_time = time.perf_counter_ns()
                 _ = client.set_cmds(cmds_left, "left")
-                left_set_cmds_elapsed_time = (time.perf_counter_ns(
-                ) - left_set_cmds_start_time) / 1e6
+                left_set_cmds_elapsed_time = (time.perf_counter_ns() -
+                                              left_set_cmds_start_time) / 1e6
                 if left_set_cmds_elapsed_time > 1.0:
                     err_dict["left_set_cmds"] += 1
 
@@ -187,54 +186,55 @@ def main():
                     dofs=dofs["right"],
                     use_gripper=use_gripper,
                 )
-                cmds_right = ctrl_util(
-                    kp=mit_kp,
-                    kd=mit_kd,
-                    q_tar=q_tar_right,
-                    dq_tar=np.zeros(dofs["right"]),
-                    q_cur=q_cur_right,
-                    dq_cur=dq_cur_right,
-                    tau_comp=tau_comp_right,
-                )
-                right_calc_tau_comp_elapsed_time = (time.perf_counter_ns(
-                ) - right_calc_tau_comp_start_time) / 1e6
+                # ((q_tar_0, dq_tar_0, tau_comp_0, kp_0, kd_0), (q_tar_1, dq_tar_1, tau_comp_1, kp_1, kd_1), ...)
+                cmds_right = np.vstack((q_tar_right, np.zeros(dofs["right"]),
+                                        tau_comp_right, mit_kp, mit_kd)).T
+                right_calc_tau_comp_elapsed_time = (
+                    time.perf_counter_ns() -
+                    right_calc_tau_comp_start_time) / 1e6
                 if right_calc_tau_comp_elapsed_time > 0.2:
                     err_dict["right_calc_cmds"] += 1
                 right_set_cmds_start_time = time.perf_counter_ns()
                 _ = client.set_cmds(cmds_right, "right")
-                right_set_cmds_elapsed_time = (time.perf_counter_ns(
-                ) - right_set_cmds_start_time) / 1e6
+                right_set_cmds_elapsed_time = (time.perf_counter_ns() -
+                                               right_set_cmds_start_time) / 1e6
                 if right_set_cmds_elapsed_time > 1.0:
                     err_dict["right_set_cmds"] += 1
 
-            if yoco_config["use_cam"]:
+            if cam_state["use_depth"]["head"]:
                 head_depth_hdr, head_depth_img = client.get_depth("head")
                 if head_depth_hdr is not None:
                     head_depth_cmap = depth_to_cmap(head_depth_img)
                     cv2.imshow("head_depth_cmap", head_depth_cmap)
 
+            if cam_state["use_rgb"]["head"]:
                 head_rgb_hdr, head_rgb_img = client.get_rgb("head")
                 if head_rgb_hdr is not None:
                     cv2.imshow("head_rgb_img", head_rgb_img)
 
+            if cam_state["use_depth"]["left"]:
                 left_depth_hdr, left_depth_img = client.get_depth("left")
                 if left_depth_hdr is not None:
                     left_depth_cmap = depth_to_cmap(left_depth_img)
                     cv2.imshow("left_depth_cmap", left_depth_cmap)
 
+            if cam_state["use_rgb"]["left"]:
                 left_rgb_hdr, left_rgb_img = client.get_rgb("left")
                 if left_rgb_hdr is not None:
                     cv2.imshow("left_rgb_img", left_rgb_img)
 
+            if cam_state["use_depth"]["right"]:
                 right_depth_hdr, right_depth_img = client.get_depth("right")
                 if right_depth_hdr is not None:
                     right_depth_cmap = depth_to_cmap(right_depth_img)
                     cv2.imshow("right_depth_cmap", right_depth_cmap)
 
+            if cam_state["use_rgb"]["right"]:
                 right_rgb_hdr, right_rgb_img = client.get_rgb("right")
                 if right_rgb_hdr is not None:
                     cv2.imshow("right_rgb_img", right_rgb_img)
 
+            if has_cam:
                 key = cv2.waitKey(1)
                 if key == ord('q'):
                     break
@@ -247,6 +247,35 @@ def main():
                 hex_log(HEX_LOG_LEVEL["info"], f"{i + 1}/{test_num}")
 
             rate.sleep()
+
+        print("stop moving")
+        for _ in range(10):
+            if (q_cur_left is not None) and (dq_cur_left is not None):
+                tau_comp_left = calc_tau_comp(
+                    q_cur=q_cur_left,
+                    dq_cur=dq_cur_left,
+                    dyn_util=dyn_util,
+                    dofs=dofs["left"],
+                    use_gripper=use_gripper,
+                )
+                cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left"]),
+                                       tau_comp_left, mit_kp, mit_kd)).T
+                _ = client.set_cmds(cmds_left, "left")
+
+            if (q_cur_right is not None) and (dq_cur_right is not None):
+                tau_comp_right = calc_tau_comp(
+                    q_cur=q_cur_right,
+                    dq_cur=dq_cur_right,
+                    dyn_util=dyn_util,
+                    dofs=dofs["right"],
+                    use_gripper=use_gripper,
+                )
+                cmds_right = np.vstack((q_tar_right, np.zeros(dofs["right"]),
+                                        tau_comp_right, mit_kp, mit_kd)).T
+                _ = client.set_cmds(cmds_right, "right")
+
+            rate.sleep()
+
     finally:
         cv2.destroyAllWindows()
         hex_log(HEX_LOG_LEVEL["info"], f"##### err_dict: #####")

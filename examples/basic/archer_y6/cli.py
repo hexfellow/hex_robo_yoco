@@ -17,13 +17,11 @@ from hex_zmq_servers import (
     hex_log,
 )
 from hex_robo_utils import HexDynUtil as DynUtil
-from hex_robo_utils import HexCtrlUtilMitJoint as CtrlUtil
 
 
 def wait_client_working(client, timeout: float = 5.0) -> bool:
     for _ in range(int(timeout * 10)):
-        working = client.is_working()
-        if working is not None and working["cmd"] == "is_working_ok":
+        if client.is_working():
             if hasattr(client, "seq_clear"):
                 client.seq_clear()
             return True
@@ -40,7 +38,7 @@ def depth_to_cmap(depth_img: np.ndarray):
     return depth_cmap
 
 
-def cal_tau_comp(
+def calc_tau_comp(
     q_cur: np.ndarray,
     dq_cur: np.ndarray,
     dyn_util: DynUtil,
@@ -88,19 +86,22 @@ def main():
             dtype=np.float64,
         ),
     )
-    ctrl_util = CtrlUtil()
 
     # wait for yoco client to work
     if not wait_client_working(client):
         hex_log(HEX_LOG_LEVEL["err"], "yoco client is not working")
         return
 
-    # get dofs, limits and intri
+    # get dofs and limits
     dofs = client.get_dofs()
     limits = client.get_limits()
     hex_log(HEX_LOG_LEVEL["info"], f"dofs: {dofs}")
     hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits}")
-    if yoco_config["use_cam"]:
+
+    # get cam state and intri
+    cam_state = client.get_cam_state()
+    has_cam = cam_state["use_rgb"] or cam_state["use_depth"]
+    if has_cam:
         intri = client.get_intri()
         hex_log(HEX_LOG_LEVEL["info"], f"intri: {intri}")
 
@@ -134,22 +135,16 @@ def main():
             # hex_log(HEX_LOG_LEVEL["info"], f"cmds: {cmds}")
             if q_cur is not None and dq_cur is not None:
                 calc_cmds_start_time = time.perf_counter_ns()
-                tau_comp = cal_tau_comp(
+                tau_comp = calc_tau_comp(
                     q_cur,
                     dq_cur,
                     dyn_util,
                     dofs,
                     use_gripper,
                 )
-                cmds = ctrl_util(
-                    kp=mit_kp,
-                    kd=mit_kd,
-                    q_tar=q_tar,
-                    dq_tar=np.zeros(dofs),
-                    q_cur=q_cur,
-                    dq_cur=dq_cur,
-                    tau_comp=tau_comp,
-                )
+                # ((q_tar_0, dq_tar_0, tau_comp_0, kp_0, kd_0), (q_tar_1, dq_tar_1, tau_comp_1, kp_1, kd_1), ...)
+                cmds = np.vstack(
+                    (q_tar, np.zeros(dofs), tau_comp, mit_kp, mit_kd)).T
                 calc_cmds_elapsed_time = (time.perf_counter_ns() -
                                           calc_cmds_start_time) / 1e6
                 if calc_cmds_elapsed_time > 0.2:
@@ -161,16 +156,18 @@ def main():
                 if set_cmds_elapsed_time > 1.0:
                     err_dict["set_cmds"] += 1
 
-            if yoco_config["use_cam"]:
+            if cam_state["use_depth"]:
                 depth_hdr, depth_img = client.get_depth()
                 if depth_hdr is not None:
                     depth_cmap = depth_to_cmap(depth_img)
                     cv2.imshow("depth_cmap", depth_cmap)
 
+            if cam_state["use_rgb"]:
                 rgb_hdr, rgb_img = client.get_rgb()
                 if rgb_hdr is not None:
                     cv2.imshow("rgb_img", rgb_img)
 
+            if has_cam:
                 key = cv2.waitKey(1)
                 if key == ord('q'):
                     break
@@ -183,6 +180,23 @@ def main():
                 hex_log(HEX_LOG_LEVEL["info"], f"{i + 1}/{test_num}")
 
             rate.sleep()
+
+        print("stop moving")
+        for _ in range(10):
+            if (q_cur is not None) and (dq_cur is not None):
+                tau_comp = calc_tau_comp(
+                    q_cur=q_cur,
+                    dq_cur=dq_cur,
+                    dyn_util=dyn_util,
+                    dofs=dofs,
+                    use_gripper=use_gripper,
+                )
+                cmds = np.vstack(
+                    (q_tar, np.zeros(dofs), tau_comp, mit_kp, mit_kd)).T
+                _ = client.set_cmds(cmds)
+
+            rate.sleep()
+
     finally:
         cv2.destroyAllWindows()
         hex_log(HEX_LOG_LEVEL["info"], f"##### err_dict: #####")
