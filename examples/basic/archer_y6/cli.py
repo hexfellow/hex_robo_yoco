@@ -108,7 +108,7 @@ def main():
     # get states, rgb and depth, and set cmds
     q_tar = np.array(
         [0.0, -0.0205679922, 2.57081467, -0.978840246, 0.0, 0.0, 0.5])
-    rate = HexRate(500)
+    rate = HexRate(1000)
     test_num = 10_000
     err_dict = {
         "get_states": 0,

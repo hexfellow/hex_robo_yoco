@@ -32,7 +32,7 @@ SRV_CFG = {"mujoco_port": 12345, "robot_port": 12346, "camera_port": 12347}
 
 # Mujoco config
 MUJOCO_PARAMS = {
-    "states_rate": 500,
+    "states_rate": 1000,
     "img_rate": 30,
     "tau_ctrl": False,
     "headless": True,
@@ -46,7 +46,7 @@ MUJOCO_PARAMS = {
 ROBOT_PARAMS = {
     "device_ip": "172.18.8.161",
     "device_port": 8439,
-    "control_hz": 500,
+    "control_hz": 1000,
     "sens_ts": True,
     "arm_type": HEXARM_CFG["arm_type"],
     "use_gripper": HEXARM_CFG["use_gripper"],
