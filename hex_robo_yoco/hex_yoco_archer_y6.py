@@ -60,7 +60,13 @@ class HexYocoArcherY6:
         self.__clients = {}
         if self.__use_sim:
             self.__clients["mujoco"] = HexMujocoArcherY6Client(
-                net_config=mujoco_net_config)
+                net_config=mujoco_net_config,
+                recv_config={
+                    "rgb": self.__use_rgb,
+                    "depth": self.__use_depth,
+                    "obj": False,
+                },
+            )
         else:
             self.__clients["robot"] = HexRobotHexarmClient(
                 net_config=robot_net_config)
@@ -106,12 +112,6 @@ class HexYocoArcherY6:
             return self.__clients["mujoco"].reset()
         else:
             raise ValueError("`reset` is not supported in real mode")
-
-    def get_obj_pose(self):
-        if self.__use_sim:
-            return self.__clients["mujoco"].get_states("obj")
-        else:
-            raise ValueError("`get_obj_pose` is not supported in real mode")
 
     def seq_clear(self):
         if self.__use_sim:

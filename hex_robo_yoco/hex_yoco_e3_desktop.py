@@ -71,7 +71,17 @@ class HexYocoE3Desktop:
         self.__clients = {}
         if self.__use_sim:
             self.__clients["mujoco"] = HexMujocoE3DesktopClient(
-                net_config=mujoco_net_config)
+                net_config=mujoco_net_config,
+                recv_config={
+                    "head_rgb": self.__use_rgb["head"],
+                    "left_rgb": self.__use_rgb["left"],
+                    "right_rgb": self.__use_rgb["right"],
+                    "head_depth": self.__use_depth["head"],
+                    "left_depth": self.__use_depth["left"],
+                    "right_depth": self.__use_depth["right"],
+                    "obj": False,
+                },
+            )
         else:
             self.__clients["left_robot"] = HexRobotHexarmClient(
                 net_config=left_robot_net_config)
@@ -125,12 +135,6 @@ class HexYocoE3Desktop:
             return self.__clients["mujoco"].reset()
         else:
             raise ValueError("`reset` is not supported in real mode")
-
-    def get_obj_pose(self):
-        if self.__use_sim:
-            return self.__clients["mujoco"].get_states("obj")
-        else:
-            raise ValueError("`get_obj_pose` is not supported in real mode")
 
     def seq_clear(self):
         if self.__use_sim:
