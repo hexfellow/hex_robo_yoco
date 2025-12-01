@@ -137,7 +137,8 @@ else:
         }
 
 
-def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT):
+def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT,
+                  launch_args: dict | None = None):
     return HexNodeConfig(
         HexNodeConfig.parse_node_params_dict(
             node_params_dict,
