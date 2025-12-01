@@ -3,65 +3,138 @@
 ################################################################
 # Copyright 2025 Dong Zhaorui. All rights reserved.
 # Author: Dong Zhaorui 847235539@qq.com
-# Date  : 2025-09-25
+# Date  : 2025-12-01
 ################################################################
 
 import os
 from hex_zmq_servers import HexLaunch, HexNodeConfig
 from hex_zmq_servers import HEX_ZMQ_SERVERS_PATH_DICT, HEX_ZMQ_CONFIGS_PATH_DICT
 from hex_zmq_servers import HEXARM_URDF_PATH_DICT
+from importlib.util import find_spec
 
-# Yoco config
-YOCO = {"use_sim": True, "cam_type": "berxel"}
-
-# Mit config
+# Common config
+_HAS_BERXEL = find_spec("berxel_py_wrapper") is not None
+_HAS_REALSENSE = find_spec("pyrealsense2") is not None
+YOCO = {"use_sim": True, "cam_type": "empty"}
+SRV_CFG = {
+    "mujoco_port": 12345,
+    "robot_port": 12346,
+    "camera_port": 12347,
+}
 MIT_CFG = {
-    "kp": [200.0, 200.0, 250.0, 150.0, 100.0, 100.0, 20.0],
-    "kd": [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 1.0]
+    "kp": [200.0, 200.0, 250.0, 150.0, 20.0, 20.0, 20.0],
+    "kd": [5.0, 5.0, 5.0, 5.0, 1.0, 1.0, 1.0],
 }
 
-# Hexarm config
+# Mujoco srv
+MUJOCO_ARCHER_Y6_SRV = {
+    "name": "mujoco_archer_y6_srv",
+    "node_path": HEX_ZMQ_SERVERS_PATH_DICT["mujoco_archer_y6"],
+    "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["mujoco_archer_y6"],
+    "cfg": {
+        "net": {
+            "ip": "127.0.0.1",
+            "port": SRV_CFG["mujoco_port"],
+        },
+        "params": {
+            "states_rate": 1000,
+            "img_rate": 30,
+            "tau_ctrl": False,
+            "headless": True,
+            "sens_ts": True,
+            "mit_kp": MIT_CFG["kp"],
+            "mit_kd": MIT_CFG["kd"],
+            "cam_type": YOCO["cam_type"],
+        },
+    },
+}
+
+# Robot srv
 HEXARM_CFG = {"arm_type": "archer_y6", "gripper_type": "gp100_p050"}
 if HEXARM_CFG["gripper_type"] == "empty":
     HEXARM_CFG["use_gripper"] = False
 elif HEXARM_CFG["gripper_type"] == "gp100_p050":
     HEXARM_CFG["use_gripper"] = True
-
-# Server config
-SRV_CFG = {"mujoco_port": 12345, "robot_port": 12346, "camera_port": 12347}
-
-# Mujoco config
-MUJOCO_PARAMS = {
-    "states_rate": 1000,
-    "img_rate": 30,
-    "tau_ctrl": False,
-    "headless": True,
-    "sens_ts": True,
-    "mit_kp": MIT_CFG["kp"],
-    "mit_kd": MIT_CFG["kd"],
-    "cam_type": YOCO["cam_type"],
+ROBOT_HEXARM_SRV = {
+    "name": "robot_archer_y6_srv",
+    "node_path": HEX_ZMQ_SERVERS_PATH_DICT["robot_hexarm"],
+    "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["robot_hexarm"],
+    "cfg": {
+        "net": {
+            "port": SRV_CFG["robot_port"],
+        },
+        "params": {
+            "device_ip": "172.18.8.161",
+            "device_port": 8439,
+            "control_hz": 1000,
+            "sens_ts": True,
+            "arm_type": HEXARM_CFG["arm_type"],
+            "use_gripper": HEXARM_CFG["use_gripper"],
+            "mit_kp": MIT_CFG["kp"],
+            "mit_kd": MIT_CFG["kd"],
+        },
+    },
 }
 
-# Robot config
-ROBOT_PARAMS = {
-    "device_ip": "172.18.8.161",
-    "device_port": 8439,
-    "control_hz": 1000,
-    "sens_ts": True,
-    "arm_type": HEXARM_CFG["arm_type"],
-    "use_gripper": HEXARM_CFG["use_gripper"],
-    "mit_kp": MIT_CFG["kp"],
-    "mit_kd": MIT_CFG["kd"],
+# RGB srv
+RGB_SRV = {
+    "name": "camera_archer_y6_srv",
+    "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_rgb"],
+    "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_rgb"],
+    "cfg": {
+        "net": {
+            "port": SRV_CFG["camera_port"],
+        },
+        "params": {
+            "cam_path": "/dev/video0",
+            "resolution": [640, 480],
+            "crop": [0, 640, 0, 480],
+            "exposure": 70,
+            "temperature": 0,
+            "frame_rate": 30,
+            "sens_ts": True,
+        },
+    },
 }
 
-# Camera config
-CAMERA_PARAMS = {
-    "serial_number": "P050HYX5410E1A001",
-    "exposure": 16000,
-    "gain": 100,
-    "frame_rate": 30,
-    "sens_ts": True,
-}
+# Realsense srv
+if _HAS_REALSENSE:
+    REALSENSE_SRV = {
+        "name": "camera_archer_y6_srv",
+        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_realsense"],
+        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_realsense"],
+        "cfg": {
+            "net": {
+                "port": SRV_CFG["camera_port"],
+            },
+            "params": {
+                "serial_number": "243422073194",
+                "resolution": [640, 480],
+                "frame_rate": 30,
+                "sens_ts": True,
+            },
+        },
+    }
+
+# Berxel srv
+if _HAS_BERXEL:
+    BERXEL_SRV = {
+        "name": "camera_archer_y6_srv",
+        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
+        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
+        "cfg": {
+            "net": {
+                "port": SRV_CFG["camera_port"],
+            },
+            "params": {
+                "serial_number": "P100RYB4C03M2B322",
+                "exposure": 10000,
+                "gain": 100,
+                "frame_rate": 30,
+                "sens_ts": True,
+            },
+        },
+    }
 
 # node params
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -98,51 +171,37 @@ NODE_PARAMS_DICT = {
     },
 }
 
-if YOCO["use_sim"]:
-    NODE_PARAMS_DICT["mujoco_archer_y6_srv"] = {
-        "name": "mujoco_archer_y6_srv",
-        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["mujoco_archer_y6"],
-        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["mujoco_archer_y6"],
-        "cfg": {
-            "net": {
-                "ip": "127.0.0.1",
-                "port": SRV_CFG["mujoco_port"],
-            },
-            "params": MUJOCO_PARAMS,
-        },
-    }
-else:
-    NODE_PARAMS_DICT["robot_archer_y6_srv"] = {
-        "name": "robot_archer_y6_srv",
-        "node_path": HEX_ZMQ_SERVERS_PATH_DICT["robot_hexarm"],
-        "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["robot_hexarm"],
-        "cfg": {
-            "net": {
-                "port": SRV_CFG["robot_port"],
-            },
-            "params": ROBOT_PARAMS,
-        },
-    }
-    if YOCO["cam_type"] == "berxel":
-        NODE_PARAMS_DICT["camera_archer_y6_srv"] = {
-            "name": "camera_archer_y6_srv",
-            "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_berxel"],
-            "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
-            "cfg": {
-                "net": {
-                    "port": SRV_CFG["camera_port"],
-                },
-                "params": CAMERA_PARAMS,
-            },
-        }
-
 
 def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT,
-                  launch_args: dict | None = None):
+                  launch_args: dict = YOCO):
+    default_node_params_dict = NODE_PARAMS_DICT.copy()
+    use_sim = launch_args.get("use_sim", YOCO["use_sim"])
+    cam_type = launch_args.get("cam_type", YOCO["cam_type"])
+    if use_sim:
+        default_node_params_dict["mujoco_archer_y6_srv"] = MUJOCO_ARCHER_Y6_SRV
+        default_node_params_dict["mujoco_archer_y6_srv"]["cfg"]["params"][
+            "cam_type"] = cam_type
+    else:
+        default_node_params_dict["robot_archer_y6_srv"] = ROBOT_HEXARM_SRV
+        # cam_type: empty, rgb, realsense, berxel
+        if cam_type == "rgb":
+            default_node_params_dict["camera_archer_y6_srv"] = RGB_SRV
+        elif cam_type == "realsense":
+            if _HAS_REALSENSE:
+                default_node_params_dict[
+                    "camera_archer_y6_srv"] = REALSENSE_SRV
+        elif cam_type == "berxel":
+            if _HAS_BERXEL:
+                default_node_params_dict["camera_archer_y6_srv"] = BERXEL_SRV
+        elif cam_type == "empty":
+            pass
+        else:
+            raise ValueError(f"unknown camera type: {cam_type}")
+
     return HexNodeConfig(
         HexNodeConfig.parse_node_params_dict(
             node_params_dict,
-            NODE_PARAMS_DICT,
+            default_node_params_dict,
         ))
 
 
