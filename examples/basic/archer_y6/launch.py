@@ -15,11 +15,14 @@ from importlib.util import find_spec
 # Common config
 _HAS_BERXEL = find_spec("berxel_py_wrapper") is not None
 _HAS_REALSENSE = find_spec("pyrealsense2") is not None
-YOCO = {"use_sim": True, "cam_type": "empty"}
-SRV_CFG = {
-    "mujoco_port": 12345,
-    "robot_port": 12346,
-    "camera_port": 12347,
+YOCO = {
+    "use_sim": True,
+    "cam_type": "empty",
+    "srv_port": {
+        "mujoco_port": 12345,
+        "robot_port": 12346,
+        "camera_port": 12347,
+    },
 }
 MIT_CFG = {
     "kp": [200.0, 200.0, 250.0, 150.0, 20.0, 20.0, 20.0],
@@ -34,7 +37,7 @@ MUJOCO_ARCHER_Y6_SRV = {
     "cfg": {
         "net": {
             "ip": "127.0.0.1",
-            "port": SRV_CFG["mujoco_port"],
+            "port": YOCO["srv_port"]["mujoco_port"],
         },
         "params": {
             "states_rate": 1000,
@@ -61,7 +64,7 @@ ROBOT_HEXARM_SRV = {
     "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["robot_hexarm"],
     "cfg": {
         "net": {
-            "port": SRV_CFG["robot_port"],
+            "port": YOCO["srv_port"]["robot_port"],
         },
         "params": {
             "device_ip": "172.18.8.161",
@@ -83,7 +86,7 @@ RGB_SRV = {
     "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_rgb"],
     "cfg": {
         "net": {
-            "port": SRV_CFG["camera_port"],
+            "port": YOCO["srv_port"]["camera_port"],
         },
         "params": {
             "cam_path": "/dev/video0",
@@ -105,7 +108,7 @@ if _HAS_REALSENSE:
         "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_realsense"],
         "cfg": {
             "net": {
-                "port": SRV_CFG["camera_port"],
+                "port": YOCO["srv_port"]["camera_port"],
             },
             "params": {
                 "serial_number": "243422073194",
@@ -124,7 +127,7 @@ if _HAS_BERXEL:
         "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
         "cfg": {
             "net": {
-                "port": SRV_CFG["camera_port"],
+                "port": YOCO["srv_port"]["camera_port"],
             },
             "params": {
                 "serial_number": "P100RYB4C03M2B322",
@@ -158,13 +161,13 @@ NODE_PARAMS_DICT = {
             MIT_CFG,
             "net": {
                 "mujoco_net": {
-                    "port": SRV_CFG["mujoco_port"]
+                    "port": YOCO["srv_port"]["mujoco_port"]
                 },
                 "robot_net": {
-                    "port": SRV_CFG["robot_port"]
+                    "port": YOCO["srv_port"]["robot_port"]
                 },
                 "camera_net": {
-                    "port": SRV_CFG["camera_port"]
+                    "port": YOCO["srv_port"]["camera_port"]
                 },
             },
         },
@@ -177,10 +180,14 @@ def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT,
     default_node_params_dict = NODE_PARAMS_DICT.copy()
     use_sim = launch_args.get("use_sim", YOCO["use_sim"])
     cam_type = launch_args.get("cam_type", YOCO["cam_type"])
+    srv_port = launch_args.get("srv_port", YOCO["srv_port"])
     if use_sim:
         default_node_params_dict["mujoco_archer_y6_srv"] = MUJOCO_ARCHER_Y6_SRV
         default_node_params_dict["mujoco_archer_y6_srv"]["cfg"]["params"][
             "cam_type"] = cam_type
+        default_node_params_dict["mujoco_archer_y6_srv"]["cfg"]["net"][
+            "port"] = srv_port.get("mujoco_port",
+                                   YOCO["srv_port"]["mujoco_port"])
     else:
         default_node_params_dict["robot_archer_y6_srv"] = ROBOT_HEXARM_SRV
         # cam_type: empty, rgb, realsense, berxel
@@ -190,9 +197,15 @@ def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT,
             if _HAS_REALSENSE:
                 default_node_params_dict[
                     "camera_archer_y6_srv"] = REALSENSE_SRV
+            default_node_params_dict["camera_archer_y6_srv"]["cfg"]["net"][
+                "port"] = srv_port.get("camera_port",
+                                       YOCO["srv_port"]["camera_port"])
         elif cam_type == "berxel":
             if _HAS_BERXEL:
                 default_node_params_dict["camera_archer_y6_srv"] = BERXEL_SRV
+                default_node_params_dict["camera_archer_y6_srv"]["cfg"]["net"][
+                    "port"] = srv_port.get("camera_port",
+                                           YOCO["srv_port"]["camera_port"])
         elif cam_type == "empty":
             pass
         else:

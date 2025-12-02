@@ -15,14 +15,17 @@ from importlib.util import find_spec
 # Common config
 _HAS_BERXEL = find_spec("berxel_py_wrapper") is not None
 _HAS_REALSENSE = find_spec("pyrealsense2") is not None
-YOCO = {"use_sim": True, "cam_type": ["empty", "empty", "empty"]}
-SRV_CFG = {
-    "mujoco_port": 12345,
-    "left_robot_port": 12346,
-    "right_robot_port": 12347,
-    "head_camera_port": 12348,
-    "left_camera_port": 12349,
-    "right_camera_port": 12350,
+YOCO = {
+    "use_sim": True,
+    "cam_type": ["empty", "empty", "empty"],
+    "srv_port": {
+        "mujoco_port": 12345,
+        "left_robot_port": 12346,
+        "right_robot_port": 12347,
+        "head_camera_port": 12348,
+        "left_camera_port": 12349,
+        "right_camera_port": 12350,
+    },
 }
 MIT_CFG = {
     "kp": [200.0, 200.0, 250.0, 150.0, 20.0, 20.0, 20.0],
@@ -37,7 +40,7 @@ MUJOCO_E3_DESKTOP_SRV = {
     "cfg": {
         "net": {
             "ip": "127.0.0.1",
-            "port": SRV_CFG["mujoco_port"],
+            "port": YOCO["srv_port"]["mujoco_port"],
         },
         "params": {
             "states_rate": 1000,
@@ -64,7 +67,7 @@ ROBOT_HEXARM_SRV = {
     "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["robot_hexarm"],
     "cfg": {
         "net": {
-            "port": SRV_CFG["left_robot_port"],
+            "port": YOCO["srv_port"]["left_robot_port"],
         },
         "params": {
             "device_ip": "172.18.8.161",
@@ -86,7 +89,7 @@ RGB_SRV = {
     "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_rgb"],
     "cfg": {
         "net": {
-            "port": SRV_CFG["head_camera_port"],
+            "port": YOCO["srv_port"]["head_camera_port"],
         },
         "params": {
             "cam_path": "/dev/video0",
@@ -108,7 +111,7 @@ if _HAS_REALSENSE:
         "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_realsense"],
         "cfg": {
             "net": {
-                "port": SRV_CFG["head_camera_port"],
+                "port": YOCO["srv_port"]["head_camera_port"],
             },
             "params": {
                 "serial_number": "243422073194",
@@ -127,7 +130,7 @@ if _HAS_BERXEL:
         "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_berxel"],
         "cfg": {
             "net": {
-                "port": SRV_CFG["head_camera_port"],
+                "port": YOCO["srv_port"]["head_camera_port"],
             },
             "params": {
                 "serial_number": "P100RYB4C03M2B322",
@@ -162,22 +165,22 @@ NODE_PARAMS_DICT = {
             MIT_CFG,
             "net": {
                 "mujoco_net": {
-                    "port": SRV_CFG["mujoco_port"]
+                    "port": YOCO["srv_port"]["mujoco_port"]
                 },
                 "left_robot_net": {
-                    "port": SRV_CFG["left_robot_port"]
+                    "port": YOCO["srv_port"]["left_robot_port"]
                 },
                 "right_robot_net": {
-                    "port": SRV_CFG["right_robot_port"]
+                    "port": YOCO["srv_port"]["right_robot_port"]
                 },
                 "head_camera_net": {
-                    "port": SRV_CFG["head_camera_port"]
+                    "port": YOCO["srv_port"]["head_camera_port"]
                 },
                 "left_camera_net": {
-                    "port": SRV_CFG["left_camera_port"]
+                    "port": YOCO["srv_port"]["left_camera_port"]
                 },
                 "right_camera_net": {
-                    "port": SRV_CFG["right_camera_port"]
+                    "port": YOCO["srv_port"]["right_camera_port"]
                 },
             },
         },
@@ -190,40 +193,52 @@ def get_node_cfgs(node_params_dict: dict = NODE_PARAMS_DICT,
     default_node_params_dict = NODE_PARAMS_DICT.copy()
     use_sim = launch_args.get("use_sim", YOCO["use_sim"])
     cam_type = launch_args.get("cam_type", YOCO["cam_type"])
+    srv_port = launch_args.get("srv_port", YOCO["srv_port"])
     if use_sim:
         default_node_params_dict[
             "mujoco_e3_desktop_srv"] = MUJOCO_E3_DESKTOP_SRV
         default_node_params_dict["mujoco_e3_desktop_srv"]["cfg"]["params"][
             "cam_type"] = cam_type
+        default_node_params_dict["mujoco_e3_desktop_srv"]["cfg"]["net"][
+            "port"] = srv_port.get("mujoco_port",
+                                   YOCO["srv_port"]["mujoco_port"])
     else:
         default_node_params_dict[
             "left_robot_e3_desktop_srv"] = ROBOT_HEXARM_SRV.copy()
         default_node_params_dict[
             "right_robot_e3_desktop_srv"] = ROBOT_HEXARM_SRV.copy()
         default_node_params_dict["left_robot_e3_desktop_srv"]["cfg"]["net"][
-            "port"] = SRV_CFG["left_robot_port"]
+            "port"] = srv_port.get("left_robot_port",
+                                   YOCO["srv_port"]["left_robot_port"])
         default_node_params_dict["right_robot_e3_desktop_srv"]["cfg"]["net"][
-            "port"] = SRV_CFG["right_robot_port"]
+            "port"] = srv_port.get("right_robot_port",
+                                   YOCO["srv_port"]["right_robot_port"])
         # cam_type: empty, rgb, realsense, berxel
         for cam, name in zip(cam_type, ["head", "left", "right"]):
             if cam == "rgb":
                 default_node_params_dict[
                     f"{name}_camera_e3_desktop_srv"] = RGB_SRV.copy()
                 default_node_params_dict[f"{name}_camera_e3_desktop_srv"][
-                    "cfg"]["net"]["port"] = SRV_CFG[f"{name}_camera_port"]
+                    "cfg"]["net"]["port"] = srv_port.get(
+                        f"{name}_camera_port",
+                        YOCO["srv_port"][f"{name}_camera_port"])
             elif cam == "realsense":
                 if _HAS_REALSENSE:
                     default_node_params_dict[
                         f"{name}_camera_e3_desktop_srv"] = REALSENSE_SRV.copy(
                         )
                     default_node_params_dict[f"{name}_camera_e3_desktop_srv"][
-                        "cfg"]["net"]["port"] = SRV_CFG[f"{name}_camera_port"]
+                        "cfg"]["net"]["port"] = srv_port.get(
+                            f"{name}_camera_port",
+                            YOCO["srv_port"][f"{name}_camera_port"])
             elif cam == "berxel":
                 if _HAS_BERXEL:
                     default_node_params_dict[
                         f"{name}_camera_e3_desktop_srv"] = BERXEL_SRV.copy()
                     default_node_params_dict[f"{name}_camera_e3_desktop_srv"][
-                        "cfg"]["net"]["port"] = SRV_CFG[f"{name}_camera_port"]
+                        "cfg"]["net"]["port"] = srv_port.get(
+                            f"{name}_camera_port",
+                            YOCO["srv_port"][f"{name}_camera_port"])
             elif cam == "empty":
                 pass
             else:
