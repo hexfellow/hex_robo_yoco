@@ -32,27 +32,22 @@ if HEXARM_CFG["gripper_type"] == "empty":
     HEXARM_CFG["use_gripper"] = False
 elif HEXARM_CFG["gripper_type"] == "gp100_p050":
     HEXARM_CFG["use_gripper"] = True
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = f"{SCRIPT_DIR}/../../.."
 
 # launch params
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-HEX_ROBO_YOCO_DIR = f"{SCRIPT_DIR}/../../../hex_robo_yoco"
 LAUNCH_PATH_DICT = {
-    "driver":
-    (f"{HEX_ROBO_YOCO_DIR}/../examples/basic/e3_desktop/driver.py", YOCO),
+    "driver": (f"{BASE_DIR}/examples/basic/e3_desktop/driver.py", YOCO),
 }
 LAUNCH_PARAMS_DICT = {"driver": {}}
 
 # node params
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-HEX_ROBO_YOCO_DIR = f"{SCRIPT_DIR}/../../../hex_robo_yoco"
 NODE_PARAMS_DICT = {
     # cli
     "e3_desktop_cli": {
         "name": "e3_desktop_cli",
-        "node_path":
-        f"{HEX_ROBO_YOCO_DIR}/../examples/basic/e3_desktop/cli.py",
-        "cfg_path":
-        f"{HEX_ROBO_YOCO_DIR}/../examples/basic/e3_desktop/cli.json",
+        "node_path": f"{BASE_DIR}/examples/basic/e3_desktop/cli.py",
+        "cfg_path": f"{BASE_DIR}/examples/basic/e3_desktop/cli.json",
         "cfg": {
             "yoco":
             YOCO,
