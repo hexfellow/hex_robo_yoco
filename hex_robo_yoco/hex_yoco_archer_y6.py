@@ -21,16 +21,24 @@ if _HAS_REALSENSE:
     from hex_zmq_servers import HexCamRealsenseClient
 
 CAMERA_CONFIG = {
-    "empty": (False, False),
-    "rgb": (True, False),
-    "berxel": (True, True),
-    "realsense": (True, True),
+    "empty": [(False, False), (None, None)],
+    "rgb": [(True, False), ((480, 640, 3), None)],
+    "berxel": [(True, True), ((400, 640, 3), (400, 640))],
+    "realsense": [(True, True), ((480, 640, 3), (480, 640))],
 }
 
 
 class HexYocoArcherY6:
 
-    def __init__(self, yoco_config: dict, net_config: dict):
+    def __init__(
+        self,
+        yoco_config: dict,
+        net_config: dict,
+        prefix: str = "",
+    ):
+        self.__prefix = prefix
+        if self.__prefix != "":
+            self.__prefix = f"{self.__prefix}_"
         try:
             use_sim = yoco_config["use_sim"]
             cam_type = yoco_config["cam_type"]
@@ -42,11 +50,11 @@ class HexYocoArcherY6:
                 print("`pyrealsense2` not found, setting cam_type to empty")
                 cam_type = "empty"
             if use_sim:
-                mujoco_net_config = net_config["mujoco_net"]
+                mujoco_net_config = net_config[f"{self.__prefix}mujoco_net"]
             else:
-                robot_net_config = net_config["robot_net"]
+                robot_net_config = net_config[f"{self.__prefix}robot_net"]
                 camera_net_config = net_config[
-                    "camera_net"] if cam_type != "empty" else None
+                    f"{self.__prefix}camera_net"] if cam_type != "empty" else None
         except KeyError as ke:
             missing_key = ke.args[0]
             raise ValueError(
@@ -54,8 +62,10 @@ class HexYocoArcherY6:
 
         self.__use_sim = use_sim
         self.__cam_type = cam_type
-        self.__use_rgb, self.__use_depth = CAMERA_CONFIG.get(
-            cam_type, (False, False))
+        (self.__use_rgb,
+         self.__use_depth), (self.__rgb_shape,
+                             self.__depth_shape) = CAMERA_CONFIG.get(
+                                 cam_type, [(False, False), (None, None)])
 
         self.__clients = {}
         if self.__use_sim:
@@ -96,6 +106,8 @@ class HexYocoArcherY6:
         return {
             "use_rgb": self.__use_rgb,
             "use_depth": self.__use_depth,
+            "rgb_shape": self.__rgb_shape,
+            "depth_shape": self.__depth_shape,
         }
 
     def is_working(self):
@@ -131,11 +143,11 @@ class HexYocoArcherY6:
         else:
             return self.__clients["robot"].get_limits()[0]
 
-    def get_states(self):
+    def get_states(self, newest: bool = False):
         if self.__use_sim:
-            return self.__clients["mujoco"].get_states('robot')
+            return self.__clients["mujoco"].get_states(newest=newest)
         else:
-            return self.__clients["robot"].get_states()
+            return self.__clients["robot"].get_states(newest=newest)
 
     def set_cmds(self, cmds: np.ndarray) -> bool:
         if self.__use_sim:
@@ -155,22 +167,22 @@ class HexYocoArcherY6:
             raise ValueError(
                 f"`get_intri` is not supported with type {self.__cam_type}")
 
-    def get_rgb(self):
+    def get_rgb(self, newest: bool = False):
         if self.__use_rgb:
             if self.__use_sim:
-                return self.__clients["mujoco"].get_rgb()
+                return self.__clients["mujoco"].get_rgb(newest=newest)
             else:
-                return self.__clients["camera"].get_rgb()
+                return self.__clients["camera"].get_rgb(newest=newest)
         else:
             raise ValueError(
                 f"`get_rgb` is not supported with type {self.__cam_type}")
 
-    def get_depth(self):
+    def get_depth(self, newest: bool = False):
         if self.__use_depth:
             if self.__use_sim:
-                return self.__clients["mujoco"].get_depth()
+                return self.__clients["mujoco"].get_depth(newest=newest)
             else:
-                return self.__clients["camera"].get_depth()
+                return self.__clients["camera"].get_depth(newest=newest)
         else:
             raise ValueError(
                 f"`get_depth` is not supported with type {self.__cam_type}")

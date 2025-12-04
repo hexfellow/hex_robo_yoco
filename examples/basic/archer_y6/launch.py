@@ -9,36 +9,61 @@
 import os
 from hex_zmq_servers import HexLaunch, HexNodeConfig
 from hex_zmq_servers import HEXARM_URDF_PATH_DICT
+from hex_robo_yoco import HEX_YOCO_DRIVER_PATH_DICT
 
-# Common config
+# YOCO config
+HEXARM_CFG = {"arm_type": "archer_y6", "gripper_type": "gp100_p050"}
 YOCO = {
-    "use_sim": True,
-    "cam_type": "empty",
+    "use_sim": False,
+    "cam_type": "realsense",
     "srv_port": {
         "mujoco_port": 12345,
         "robot_port": 12346,
         "camera_port": 12347,
     },
+    "params": {
+        "mujoco": {
+            "headless": True,
+        },
+        "robot": {
+            "mit_kp": [200.0, 200.0, 250.0, 150.0, 20.0, 20.0, 20.0],
+            "mit_kd": [5.0, 5.0, 5.0, 5.0, 1.0, 1.0, 1.0],
+            "arm_type": HEXARM_CFG["arm_type"],
+        },
+        "rgb": {
+            "resolution": [640, 480],
+            "crop": [0, 640, 0, 480],
+            "exposure": 70,
+            "temperature": 0,
+        },
+        "realsense": {
+            "resolution": [640, 480],
+        },
+        "berxel": {
+            "exposure": 10000,
+            "gain": 100,
+        },
+    },
+    "device": {
+        "robot": {
+            "device_ip": "172.18.30.133",
+            "device_port": 8439,
+        },
+        "camera": {
+            "serial_number": "243422071854",
+        },
+    },
 }
-MIT_CFG = {
-    "kp": [200.0, 200.0, 250.0, 150.0, 20.0, 20.0, 20.0],
-    "kd": [5.0, 5.0, 5.0, 5.0, 1.0, 1.0, 1.0],
-}
-HEXARM_CFG = {"arm_type": "archer_y6", "gripper_type": "gp100_p050"}
-if HEXARM_CFG["gripper_type"] == "empty":
-    HEXARM_CFG["use_gripper"] = False
-elif HEXARM_CFG["gripper_type"] == "gp100_p050":
-    HEXARM_CFG["use_gripper"] = True
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BASE_DIR = f"{SCRIPT_DIR}/../../.."
 
 # launch params
 LAUNCH_PATH_DICT = {
-    "driver": (f"{BASE_DIR}/examples/basic/archer_y6/driver.py", YOCO),
+    "driver": (HEX_YOCO_DRIVER_PATH_DICT["archer_y6"], YOCO),
 }
 LAUNCH_PARAMS_DICT = {"driver": {}}
 
 # node params
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = f"{SCRIPT_DIR}/../../.."
 NODE_PARAMS_DICT = {
     # cli
     "archer_y6_cli": {
@@ -52,9 +77,11 @@ NODE_PARAMS_DICT = {
             HEXARM_URDF_PATH_DICT[
                 f'{HEXARM_CFG["arm_type"]}_{HEXARM_CFG["gripper_type"]}'],
             "use_gripper":
-            HEXARM_CFG["use_gripper"],
-            "mit_cfg":
-            MIT_CFG,
+            True,
+            "mit_cfg": {
+                "kp": YOCO["params"]["robot"]["mit_kp"],
+                "kd": YOCO["params"]["robot"]["mit_kd"],
+            },
             "net": {
                 "mujoco_net": {
                     "port": YOCO["srv_port"]["mujoco_port"]
