@@ -145,7 +145,7 @@ class HexYocoArcherY6:
 
     def get_states(self, newest: bool = False):
         if self.__use_sim:
-            return self.__clients["mujoco"].get_states(newest=newest)
+            return self.__clients["mujoco"].get_states("robot", newest=newest)
         else:
             return self.__clients["robot"].get_states(newest=newest)
 

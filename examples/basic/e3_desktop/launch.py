@@ -14,8 +14,8 @@ from hex_robo_yoco import HEX_YOCO_DRIVER_PATH_DICT
 # YOCO config
 HEXARM_CFG = {"arm_type": "archer_y6", "gripper_type": "gp100_p050"}
 YOCO = {
-    "use_sim": False,
-    "cam_type": ["realsense", "realsense", "realsense"],
+    "use_sim": True,
+    "cam_type": ["empty", "empty", "empty"],
     "srv_port": {
         "mujoco_port": 12345,
         "left_robot_port": 12346,
