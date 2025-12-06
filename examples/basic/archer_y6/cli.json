@@ -29,16 +29,22 @@
         "mujoco_net": {
             "ip": "127.0.0.1",
             "port": 12345,
+            "realtime": true,
+            "deque_maxlen": 2,
             "client_timeout_ms": 200
         },
         "robot_net": {
             "ip": "127.0.0.1",
             "port": 12346,
+            "realtime": true,
+            "deque_maxlen": 2,
             "client_timeout_ms": 200
         },
         "camera_net": {
             "ip": "127.0.0.1",
             "port": 12347,
+            "realtime": true,
+            "deque_maxlen": 2,
             "client_timeout_ms": 200
         }
     }
