@@ -33,42 +33,42 @@
         "mujoco_net": {
             "ip": "127.0.0.1",
             "port": 12345,
-            "realtime": true,
+            "realtime_mode": true,
             "deque_maxlen": 2,
             "client_timeout_ms": 200
         },
         "left_robot_net": {
             "ip": "127.0.0.1",
             "port": 12346,
-            "realtime": true,
+            "realtime_mode": true,
             "deque_maxlen": 2,
             "client_timeout_ms": 200
         },
         "right_robot_net": {
             "ip": "127.0.0.1",
             "port": 12347,
-            "realtime": true,
+            "realtime_mode": true,
             "deque_maxlen": 2,
             "client_timeout_ms": 200
         },
         "head_camera_net": {
             "ip": "127.0.0.1",
             "port": 12348,
-            "realtime": true,
+            "realtime_mode": true,
             "deque_maxlen": 2,
             "client_timeout_ms": 200
         },
         "left_camera_net": {
             "ip": "127.0.0.1",
             "port": 12349,
-            "realtime": true,
+            "realtime_mode": true,
             "deque_maxlen": 2,
             "client_timeout_ms": 200
         },
         "right_camera_net": {
             "ip": "127.0.0.1",
             "port": 12350,
-            "realtime": true,
+            "realtime_mode": true,
             "deque_maxlen": 2,
             "client_timeout_ms": 200
         }
