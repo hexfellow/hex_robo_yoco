@@ -97,7 +97,7 @@ class HexYocoE3Desktop:
                 net_config=left_robot_net_config)
             self.__clients["right_robot"] = HexRobotHexarmClient(
                 net_config=right_robot_net_config)
-            for cam_name in ["head", "left", "right"]:
+            for idx, cam_name in enumerate(["head", "left", "right"]):
                 self.__clients[cam_name] = None
                 if cam_type[idx] == "berxel":
                     self.__clients[f"{cam_name}_camera"] = HexCamBerxelClient(
