@@ -21,10 +21,12 @@ if _HAS_REALSENSE:
     from hex_zmq_servers import HexCamRealsenseClient
 
 CAMERA_CONFIG = {
-    "empty": [(False, False), (None, None)],
-    "rgb": [(True, False), ((480, 640, 3), None)],
-    "berxel": [(True, True), ((400, 640, 3), (400, 640))],
-    "realsense": [(True, True), ((480, 640, 3), (480, 640))],
+    "empty": [(False, False), (None, None), (None, None)],
+    "rgb": [(True, False), ((480, 640, 3), None), ((224, 224, 3), None)],
+    "berxel": [(True, True), ((400, 640, 3), (400, 640)),
+               ((224, 224, 3), (224, 224))],
+    "realsense": [(True, True), ((480, 640, 3), (480, 640)),
+                  ((224, 224, 3), (224, 224))],
 }
 
 
@@ -63,9 +65,9 @@ class HexYocoArcherY6:
         self.__use_sim = use_sim
         self.__cam_type = cam_type
         (self.__use_rgb,
-         self.__use_depth), (self.__rgb_shape,
-                             self.__depth_shape) = CAMERA_CONFIG.get(
-                                 cam_type, [(False, False), (None, None)])
+         self.__use_depth), real_params, sim_params = CAMERA_CONFIG.get(
+             cam_type, [(False, False), (None, None), (None, None)])
+        self.__rgb_shape, self.__depth_shape = sim_params if use_sim else real_params
 
         self.__clients = {}
         if self.__use_sim:

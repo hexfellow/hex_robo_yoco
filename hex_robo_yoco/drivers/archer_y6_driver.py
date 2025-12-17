@@ -14,6 +14,7 @@ from importlib.util import find_spec
 # YOCO config
 YOCO = {
     "use_sim": True,
+    "control_hz": 1000,
     "cam_type": "empty",
     "srv_port": {
         "mujoco_port": 12345,
@@ -63,6 +64,7 @@ MUJOCO_ARCHER_Y6_SRV = {
             "port": YOCO["srv_port"]["mujoco_port"],
         },
         "params": {
+            "control_hz": YOCO["control_hz"],
             "states_rate": 1000,
             "img_rate": 30,
             "tau_ctrl": False,
@@ -85,6 +87,7 @@ ROBOT_HEXARM_SRV = {
             "port": YOCO["srv_port"]["robot_port"],
         },
         "params": {
+            "control_hz": YOCO["control_hz"],
             "device_ip": YOCO["device"]["robot"]["device_ip"],
             "device_port": YOCO["device"]["robot"]["device_port"],
             "control_hz": 1000,
@@ -303,6 +306,7 @@ def set_berxel_node_cfg(
 def get_node_cfgs(node_params_dict: dict = {}, launch_args: dict = YOCO):
     default_node_params_dict = {}
     use_sim = launch_args.get("use_sim", YOCO["use_sim"])
+    control_hz = launch_args.get("control_hz", YOCO["control_hz"])
     cam_type = launch_args.get("cam_type", YOCO["cam_type"])
     srv_port = launch_args.get("srv_port", YOCO["srv_port"])
     params = launch_args.get("params", YOCO["params"])
@@ -315,6 +319,8 @@ def get_node_cfgs(node_params_dict: dict = {}, launch_args: dict = YOCO):
         default_node_params_dict["mujoco_archer_y6_srv"]["cfg"]["net"][
             "port"] = srv_port.get("mujoco_port",
                                    YOCO["srv_port"]["mujoco_port"])
+        default_node_params_dict["mujoco_archer_y6_srv"]["cfg"]["params"][
+            "control_hz"] = control_hz
         default_node_params_dict = set_mujoco_node_cfg(
             default_node_params_dict,
             params.get("mujoco", YOCO["params"]["mujoco"]),
@@ -326,6 +332,8 @@ def get_node_cfgs(node_params_dict: dict = {}, launch_args: dict = YOCO):
         default_node_params_dict["robot_archer_y6_srv"]["cfg"]["net"][
             "port"] = srv_port.get("robot_port",
                                    YOCO["srv_port"]["robot_port"])
+        default_node_params_dict["robot_archer_y6_srv"]["cfg"]["params"][
+            "control_hz"] = control_hz
         default_node_params_dict = set_robot_node_cfg(
             default_node_params_dict,
             params.get("robot", YOCO["params"]["robot"]),

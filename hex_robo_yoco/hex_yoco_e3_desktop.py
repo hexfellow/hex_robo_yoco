@@ -21,10 +21,12 @@ if _HAS_REALSENSE:
     from hex_zmq_servers import HexCamRealsenseClient
 
 CAMERA_CONFIG = {
-    "empty": [(False, False), (None, None)],
-    "rgb": [(True, False), ((480, 640, 3), None)],
-    "berxel": [(True, True), ((400, 640, 3), (400, 640))],
-    "realsense": [(True, True), ((480, 640, 3), (480, 640))],
+    "empty": [(False, False), (None, None), (None, None)],
+    "rgb": [(True, False), ((480, 640, 3), None), ((224, 224, 3), None)],
+    "berxel": [(True, True), ((400, 640, 3), (400, 640)),
+               ((224, 224, 3), (224, 224))],
+    "realsense": [(True, True), ((480, 640, 3), (480, 640)),
+                  ((224, 224, 3), (224, 224))],
 }
 
 
@@ -73,10 +75,11 @@ class HexYocoE3Desktop:
         self.__cam_type = cam_type
         self.__use_rgb, self.__use_depth, self.__rgb_shape, self.__depth_shape = {}, {}, {}, {}
         for idx, cam_name in enumerate(["head", "left", "right"]):
-            (self.__use_rgb[cam_name], self.__use_depth[cam_name]), (
-                self.__rgb_shape[cam_name],
-                self.__depth_shape[cam_name]) = CAMERA_CONFIG.get(
-                    cam_type[idx], [(False, False), (None, None)])
+            (self.__use_rgb[cam_name], self.__use_depth[cam_name]
+             ), real_params, sim_params = CAMERA_CONFIG.get(
+                 cam_type[idx], [(False, False), (None, None), (None, None)])
+            self.__rgb_shape[cam_name], self.__depth_shape[
+                cam_name] = sim_params if use_sim else real_params
 
         self.__clients = {}
         if self.__use_sim:
