@@ -135,15 +135,15 @@ class HexYocoArcherY6:
 
     def get_dofs(self):
         if self.__use_sim:
-            return self.__clients["mujoco"].get_dofs()[0]
+            return self.__clients["mujoco"].get_dofs()
         else:
-            return self.__clients["robot"].get_dofs()[0]
+            return self.__clients["robot"].get_dofs()
 
     def get_limits(self):
         if self.__use_sim:
-            return self.__clients["mujoco"].get_limits()[0].reshape(-1, 1, 2)
+            return self.__clients["mujoco"].get_limits()
         else:
-            return self.__clients["robot"].get_limits()[0]
+            return self.__clients["robot"].get_limits()
 
     def get_states(self, newest: bool = False):
         if self.__use_sim:

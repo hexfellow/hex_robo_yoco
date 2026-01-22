@@ -42,17 +42,18 @@ def calc_tau_comp(
     q_cur: np.ndarray,
     dq_cur: np.ndarray,
     dyn_util: DynUtil,
-    dofs: int,
-    use_gripper: bool,
+    dofs: dict,
+    robot_name: str,
 ):
-    tau_comp = np.zeros(dofs)
-    q_arm = q_cur[:-1] if use_gripper else q_cur
-    dq_arm = dq_cur[:-1] if use_gripper else dq_cur
+    assert robot_name in ["left",
+                          "right"], f"robot_name must be in ['left', 'right']"
+
+    q_arm = q_cur[:dofs[f"{robot_name}_arm"]]
+    dq_arm = dq_cur[:dofs[f"{robot_name}_arm"]]
+
+    tau_comp = np.zeros(dofs[f"{robot_name}_sum"])
     _, c_mat, g_vec, _, _ = dyn_util.dynamic_params(q_arm, dq_arm)
-    if use_gripper:
-        tau_comp[:-1] = c_mat @ dq_arm + g_vec
-    else:
-        tau_comp = c_mat @ dq_arm + g_vec
+    tau_comp[:dofs[f"{robot_name}_arm"]] = c_mat @ dq_arm + g_vec
     return tau_comp
 
 
@@ -66,11 +67,9 @@ def main():
         yoco_config = cfg["yoco"]
         net_config = cfg["net"]
         model_path = cfg["model_path"]
-        use_gripper = cfg["use_gripper"]
-        mit_kp = cfg["mit_cfg"]["kp"] if use_gripper else cfg["mit_cfg"][
-            "kp"][:-1]
-        mit_kd = cfg["mit_cfg"]["kd"] if use_gripper else cfg["mit_cfg"][
-            "kd"][:-1]
+        mit_cfg = cfg["mit_cfg"]
+        mit_kp = np.array(mit_cfg["kp"])
+        mit_kd = np.array(mit_cfg["kd"])
     except KeyError as ke:
         missing_key = ke.args[0]
         raise ValueError(
@@ -93,11 +92,17 @@ def main():
         hex_log(HEX_LOG_LEVEL["err"], "yoco client is not working")
         return
 
-    # get dofs and limits
-    dofs = client.get_dofs()
-    limits = client.get_limits()
+    # parameters
+    dof_arr = client.get_dofs()
+    dofs = {
+        "left_arm": dof_arr[0],
+        "left_gripper": dof_arr[1],
+        "right_arm": dof_arr[2],
+        "right_gripper": dof_arr[3],
+        "left_sum": dof_arr[0] + dof_arr[1],
+        "right_sum": dof_arr[2] + dof_arr[3],
+    }
     hex_log(HEX_LOG_LEVEL["info"], f"dofs: {dofs}")
-    hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits}")
 
     # get cam state and intri
     cam_state = client.get_cam_state()
@@ -159,11 +164,11 @@ def main():
                     q_cur=q_cur_left,
                     dq_cur=dq_cur_left,
                     dyn_util=dyn_util,
-                    dofs=dofs["left"],
-                    use_gripper=use_gripper,
+                    dofs=dofs,
+                    robot_name="left",
                 )
                 # ((q_tar_0, dq_tar_0, tau_comp_0, kp_0, kd_0), (q_tar_1, dq_tar_1, tau_comp_1, kp_1, kd_1), ...)
-                cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left"]),
+                cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left_sum"]),
                                        tau_comp_left, mit_kp, mit_kd)).T
                 left_calc_tau_comp_elapsed_time = (
                     time.perf_counter_ns() -
@@ -183,12 +188,13 @@ def main():
                     q_cur=q_cur_right,
                     dq_cur=dq_cur_right,
                     dyn_util=dyn_util,
-                    dofs=dofs["right"],
-                    use_gripper=use_gripper,
+                    dofs=dofs,
+                    robot_name="right",
                 )
                 # ((q_tar_0, dq_tar_0, tau_comp_0, kp_0, kd_0), (q_tar_1, dq_tar_1, tau_comp_1, kp_1, kd_1), ...)
-                cmds_right = np.vstack((q_tar_right, np.zeros(dofs["right"]),
-                                        tau_comp_right, mit_kp, mit_kd)).T
+                cmds_right = np.vstack(
+                    (q_tar_right, np.zeros(dofs["right_sum"]), tau_comp_right,
+                     mit_kp, mit_kd)).T
                 right_calc_tau_comp_elapsed_time = (
                     time.perf_counter_ns() -
                     right_calc_tau_comp_start_time) / 1e6
@@ -255,10 +261,10 @@ def main():
                     q_cur=q_cur_left,
                     dq_cur=dq_cur_left,
                     dyn_util=dyn_util,
-                    dofs=dofs["left"],
-                    use_gripper=use_gripper,
+                    dofs=dofs,
+                    robot_name="left",
                 )
-                cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left"]),
+                cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left_sum"]),
                                        tau_comp_left, mit_kp, mit_kd)).T
                 _ = client.set_cmds(cmds_left, "left")
 
@@ -267,11 +273,12 @@ def main():
                     q_cur=q_cur_right,
                     dq_cur=dq_cur_right,
                     dyn_util=dyn_util,
-                    dofs=dofs["right"],
-                    use_gripper=use_gripper,
+                    dofs=dofs,
+                    robot_name="right",
                 )
-                cmds_right = np.vstack((q_tar_right, np.zeros(dofs["right"]),
-                                        tau_comp_right, mit_kp, mit_kd)).T
+                cmds_right = np.vstack(
+                    (q_tar_right, np.zeros(dofs["right_sum"]), tau_comp_right,
+                     mit_kp, mit_kd)).T
                 _ = client.set_cmds(cmds_right, "right")
 
             rate.sleep()

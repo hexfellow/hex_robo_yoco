@@ -4,7 +4,6 @@
         "cam_type": "empty"
     },
     "model_path": "path/to/model.urdf",
-    "use_gripper": true,
     "mit_cfg": {
         "kp": [
             200.0,

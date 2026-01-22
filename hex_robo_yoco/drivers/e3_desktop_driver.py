@@ -102,7 +102,6 @@ ROBOT_HEXARM_SRV = {
             "control_hz": 1000,
             "sens_ts": True,
             "arm_type": YOCO["params"]["robot"]["arm_type"],
-            "use_gripper": True,
             "mit_kp": YOCO["params"]["robot"]["mit_kp"],
             "mit_kd": YOCO["params"]["robot"]["mit_kd"],
         },

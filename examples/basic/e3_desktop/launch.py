@@ -89,8 +89,6 @@ NODE_PARAMS_DICT = {
             "model_path":
             HEXARM_URDF_PATH_DICT[
                 f'{HEXARM_CFG["arm_type"]}_{HEXARM_CFG["gripper_type"]}'],
-            "use_gripper":
-            True,
             "mit_cfg": {
                 "kp": YOCO["params"]["robot"]["mit_kp"],
                 "kd": YOCO["params"]["robot"]["mit_kd"],

@@ -166,29 +166,19 @@ class HexYocoE3Desktop:
 
     def get_dofs(self):
         if self.__use_sim:
-            dofs_list = self.__clients["mujoco"].get_dofs()
-            return {
-                "left": dofs_list[0],
-                "right": dofs_list[1],
-            }
+            return self.__clients["mujoco"].get_dofs()
         else:
-            return {
-                "left": self.__clients["left_robot"].get_dofs()[0],
-                "right": self.__clients["right_robot"].get_dofs()[0],
-            }
+            left_dofs = self.__clients["left_robot"].get_dofs()
+            right_dofs = self.__clients["right_robot"].get_dofs()
+            return np.concatenate([left_dofs, right_dofs], axis=0)
 
     def get_limits(self):
         if self.__use_sim:
-            limits_list = self.__clients["mujoco"].get_limits()
-            return {
-                "left": limits_list[0].reshape(-1, 1, 2),
-                "right": limits_list[1].reshape(-1, 1, 2),
-            }
+            return self.__clients["mujoco"].get_limits()
         else:
-            return {
-                "left": self.__clients["left_robot"].get_limits()[0],
-                "right": self.__clients["right_robot"].get_limits()[0],
-            }
+            left_limits = self.__clients["left_robot"].get_limits()
+            right_limits = self.__clients["right_robot"].get_limits()
+            return np.concatenate([left_limits, right_limits], axis=0)
 
     def get_states(self, robot_name: str, newest: bool = False):
         if robot_name not in ["left", "right"]:

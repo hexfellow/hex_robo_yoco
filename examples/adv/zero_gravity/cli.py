@@ -33,17 +33,14 @@ def calc_tau_comp(
     q_cur: np.ndarray,
     dq_cur: np.ndarray,
     dyn_util: DynUtil,
-    dofs: int,
-    use_gripper: bool,
+    dofs: dict,
 ):
-    tau_comp = np.zeros(dofs)
-    q_arm = q_cur[:-1] if use_gripper else q_cur
-    dq_arm = dq_cur[:-1] if use_gripper else dq_cur
+    q_arm = q_cur[:dofs["robot_arm"]]
+    dq_arm = dq_cur[:dofs["robot_arm"]]
+
     _, c_mat, g_vec, _, _ = dyn_util.dynamic_params(q_arm, dq_arm)
-    if use_gripper:
-        tau_comp[:-1] = c_mat @ dq_arm + g_vec
-    else:
-        tau_comp = c_mat @ dq_arm + g_vec
+    tau_comp = np.zeros(dofs["sum"])
+    tau_comp[:dofs["robot_arm"]] = c_mat @ dq_arm + g_vec
     return tau_comp
 
 
@@ -57,11 +54,9 @@ def main():
         yoco_config = cfg["yoco"]
         net_config = cfg["net"]
         model_path = cfg["model_path"]
-        use_gripper = cfg["use_gripper"]
-        mit_kp = cfg["mit_cfg"]["kp"] if use_gripper else cfg["mit_cfg"][
-            "kp"][:-1]
-        mit_kd = cfg["mit_cfg"]["kd"] if use_gripper else cfg["mit_cfg"][
-            "kd"][:-1]
+        mit_cfg = cfg["mit_cfg"]
+        mit_kp = np.array(mit_cfg["kp"])
+        mit_kd = np.array(mit_cfg["kd"])
     except KeyError as ke:
         missing_key = ke.args[0]
         raise ValueError(
@@ -83,11 +78,14 @@ def main():
         hex_log(HEX_LOG_LEVEL["err"], "yoco client is not working")
         return
 
-    # get dofs and limits
-    dofs = client.get_dofs()
-    limits = client.get_limits()
+    # parameters
+    dof_arr = client.get_dofs()
+    dofs = {
+        "robot_arm": dof_arr[0],
+        "robot_gripper": dof_arr[1] if len(dof_arr) > 1 else None,
+        "sum": dof_arr.sum(),
+    }
     hex_log(HEX_LOG_LEVEL["info"], f"dofs: {dofs}")
-    hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits}")
 
     # get cam state and intri
     cam_state = client.get_cam_state()
@@ -108,10 +106,9 @@ def main():
                 dq_cur,
                 dyn_util,
                 dofs,
-                use_gripper,
             )
             cmds = np.vstack(
-                (q_cur, np.zeros(dofs), tau_comp, mit_kp, mit_kd)).T
+                (q_cur, np.zeros(dofs["sum"]), tau_comp, mit_kp, mit_kd)).T
             client.set_cmds(cmds)
             rate.sleep()
 
