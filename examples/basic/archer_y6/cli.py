@@ -97,6 +97,8 @@ def main():
         "sum": dof_arr.sum(),
     }
     hex_log(HEX_LOG_LEVEL["info"], f"dofs: {dofs}")
+    limits = client.get_limits()
+    hex_log(HEX_LOG_LEVEL["info"], f"limits: {limits.shape}")
 
     # get cam state and intri
     cam_state = client.get_cam_state()
