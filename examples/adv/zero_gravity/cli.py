@@ -11,11 +11,13 @@ from hex_robo_yoco import HexYocoArcherY6
 
 import numpy as np
 from hex_zmq_servers import (
-    HexRate,
     HEX_LOG_LEVEL,
     hex_log,
 )
-from hex_robo_utils import HexDynUtil as DynUtil
+from hex_robo_utils import (
+    HexDynUtil as DynUtil,
+    HexRate,
+)
 
 
 def wait_client_working(client, timeout: float = 5.0) -> bool:
@@ -97,6 +99,8 @@ def main():
     # get states, rgb and depth, and set cmds
     rate = HexRate(1000)
     while True:
+        rate.sleep()
+
         robot_states_hdr, robot_states = client.get_states()
         if robot_states_hdr is not None:
             q_cur = robot_states[:, 0]
@@ -110,7 +114,6 @@ def main():
             cmds = np.vstack(
                 (q_cur, np.zeros(dofs["sum"]), tau_comp, mit_kp, mit_kd)).T
             client.set_cmds(cmds)
-            rate.sleep()
 
 
 if __name__ == '__main__':

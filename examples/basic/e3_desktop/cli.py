@@ -12,11 +12,13 @@ from hex_robo_yoco import HexYocoE3Desktop
 import cv2
 import numpy as np
 from hex_zmq_servers import (
-    HexRate,
     HEX_LOG_LEVEL,
     hex_log,
 )
-from hex_robo_utils import HexDynUtil as DynUtil
+from hex_robo_utils import (
+    HexDynUtil as DynUtil,
+    HexRate,
+)
 
 
 def wait_client_working(client, timeout: float = 5.0) -> bool:
@@ -136,8 +138,9 @@ def main():
         q_cur_right = None
         dq_cur_right = None
         for i in range(test_num):
-            loop_start_time = time.perf_counter_ns()
+            rate.sleep()
 
+            loop_start_time = time.perf_counter_ns()
             left_get_states_start_time = time.perf_counter_ns()
             left_states_hdr, left_states = client.get_states("left")
             left_get_states_elapsed_time = (time.perf_counter_ns() -
@@ -252,10 +255,10 @@ def main():
             if (i + 1) % 1_000 == 0:
                 hex_log(HEX_LOG_LEVEL["info"], f"{i + 1}/{test_num}")
 
-            rate.sleep()
-
         print("stop moving")
         for _ in range(10):
+            rate.sleep()
+
             if (q_cur_left is not None) and (dq_cur_left is not None):
                 tau_comp_left = calc_tau_comp(
                     q_cur=q_cur_left,
@@ -280,8 +283,6 @@ def main():
                     (q_tar_right, np.zeros(dofs["right_sum"]), tau_comp_right,
                      mit_kp, mit_kd)).T
                 _ = client.set_cmds(cmds_right, "right")
-
-            rate.sleep()
 
     finally:
         cv2.destroyAllWindows()
