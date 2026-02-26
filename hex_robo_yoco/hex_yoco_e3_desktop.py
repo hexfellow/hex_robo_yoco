@@ -112,6 +112,10 @@ class HexYocoE3Desktop:
                 elif cam_type[idx] == "rgb":
                     self.__clients[f"{cam_name}_camera"] = HexCamRGBClient(
                         net_config=camera_net_config[cam_name])
+                elif cam_type[idx] == "empty":
+                    self.__clients[f"{cam_name}_camera"] = None
+                else:
+                    raise ValueError(f"Invalid camera type: {cam_type[idx]}")
 
     def __del__(self):
         for client in self.__clients.values():

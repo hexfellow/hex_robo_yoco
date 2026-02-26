@@ -133,7 +133,7 @@ RGB_SRV = {
 _HAS_REALSENSE = find_spec("pyrealsense2") is not None
 if _HAS_REALSENSE:
     REALSENSE_SRV = {
-        "name": "camera_archer_y6_srv",
+        "name": "camera_e3_desktop_srv",
         "node_path": HEX_ZMQ_SERVERS_PATH_DICT["cam_realsense"],
         "cfg_path": HEX_ZMQ_CONFIGS_PATH_DICT["cam_realsense"],
         "cfg": {
@@ -319,8 +319,8 @@ def set_berxel_node_cfg(
             BERXEL_SRV["cfg"]["params"]["gain"],
         )
     # device
-    default_node_params_dict["camera_archer_y6_srv"]["cfg"]["params"][
-        "serial_number"] = berxel_device.get(
+    default_node_params_dict[f"{berxel_name}_camera_e3_desktop_srv"]["cfg"][
+        "params"]["serial_number"] = berxel_device.get(
             "serial_number",
             BERXEL_SRV["cfg"]["params"]["serial_number"],
         )
