@@ -108,8 +108,7 @@ def main():
         hex_log(HEX_LOG_LEVEL["info"], f"intri: {intri}")
 
     # get states, rgb and depth, and set cmds
-    q_tar = np.array(
-        [0.0, -0.0205679922, 2.57081467, -0.978840246, 0.0, 0.0, 0.5])
+    q_tar = np.array([0.0, -1.5, 3.0, 0.07, 0.0, 0.0, 0.5])
     rate = HexRate(1000)
     test_num = 10_000
     err_dict = {

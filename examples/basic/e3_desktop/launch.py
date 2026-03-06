@@ -26,7 +26,7 @@ YOCO = {
     },
     "params": {
         "mujoco": {
-            "headless": True,
+            "headless": False,
         },
         "robot": {
             "mit_kp": [200.0, 200.0, 250.0, 150.0, 20.0, 20.0, 20.0],

@@ -119,10 +119,8 @@ def main():
         hex_log(HEX_LOG_LEVEL["info"], f"intri: {intri}")
 
     # get states, rgb and depth, and set cmds
-    q_tar_left = np.array(
-        [-0.5, -0.0205679922, 2.57081467, -0.978840246, 0.5, 0.0, 0.5])
-    q_tar_right = np.array(
-        [0.5, -0.0205679922, 2.57081467, -0.978840246, -0.5, 0.0, 0.5])
+    q_tar_left = np.array([0.0, -1.5, 3.0, 0.07, 0.0, 0.0, 0.5])
+    q_tar_right = np.array([0.0, -1.5, 3.0, 0.07, 0.0, 0.0, 0.5])
     rate = HexRate(1000)
     test_num = 10_000
     err_dict = {
@@ -269,8 +267,10 @@ def main():
                     dofs=dofs,
                     robot_name="left",
                 )
+                # cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left_sum"]),
+                #                        tau_comp_left, mit_kp, mit_kd)).T
                 cmds_left = np.vstack((q_tar_left, np.zeros(dofs["left_sum"]),
-                                       tau_comp_left, mit_kp, mit_kd)).T
+                                       np.zeros(dofs["left_sum"]), mit_kp, mit_kd)).T
                 _ = client.set_cmds(cmds_left, "left")
 
             if (q_cur_right is not None) and (dq_cur_right is not None):
